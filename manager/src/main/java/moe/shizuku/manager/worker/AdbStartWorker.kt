@@ -218,6 +218,12 @@ class AdbStartWorker(context: Context, params: WorkerParameters) : CoroutineWork
                 request
             )
         }
+
+        fun enqueueIfIdle(context: Context) {
+            if (ShizukuStateMachine.isRunning()) return
+            enqueue(context)
+        }
+
         const val CHANNEL_ID = "AdbStartWorker"
         const val NOTIFICATION_ID = 1448
     }

@@ -17,6 +17,7 @@ import moe.shizuku.manager.ShizukuSettings
 import moe.shizuku.manager.adb.AdbClient
 import moe.shizuku.manager.adb.AdbKey
 import moe.shizuku.manager.adb.PreferenceAdbKeyStore
+import moe.shizuku.manager.service.WatchdogManager
 import moe.shizuku.manager.starter.Starter
 import moe.shizuku.manager.utils.EnvironmentUtils
 import moe.shizuku.manager.utils.ShizukuStateMachine
@@ -28,6 +29,7 @@ object AdbStarter {
         }
 
         try {
+            WatchdogManager.clearUserStopRequest(context)
             ShizukuStateMachine.set(ShizukuStateMachine.State.STARTING)
             log?.invoke("Starting with wireless adb...\n")
         
@@ -82,6 +84,7 @@ object AdbStarter {
             val adbEnabled = Settings.Global.getInt(cr, Settings.Global.ADB_ENABLED, 0)
             if (adbEnabled == 0) throw IllegalStateException("ADB is not enabled")
 
+            WatchdogManager.expectingDeath = true
             ShizukuStateMachine.set(ShizukuStateMachine.State.STOPPING)
             val key = AdbKey(PreferenceAdbKeyStore(ShizukuSettings.getPreferences()), "shizuku")
             withContext(Dispatchers.IO) {

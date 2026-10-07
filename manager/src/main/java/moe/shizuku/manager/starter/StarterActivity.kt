@@ -27,6 +27,7 @@ import moe.shizuku.manager.R
 import moe.shizuku.manager.adb.AdbKeyException
 import moe.shizuku.manager.adb.AdbStarter
 import moe.shizuku.manager.app.AppBarActivity
+import moe.shizuku.manager.service.WatchdogManager
 import moe.shizuku.manager.utils.ShizukuStateMachine
 import moe.shizuku.manager.databinding.StarterActivityBinding
 import rikka.lifecycle.Resource
@@ -37,6 +38,16 @@ private class NotRootedException: Exception()
 class StarterActivity : AppBarActivity() {
 
     private val viewModel: ViewModel by viewModels()
+
+    override fun onStart() {
+        super.onStart()
+        WatchdogManager.isStarterActive = true
+    }
+
+    override fun onStop() {
+        WatchdogManager.isStarterActive = false
+        super.onStop()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
