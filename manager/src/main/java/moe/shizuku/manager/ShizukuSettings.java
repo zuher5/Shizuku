@@ -13,6 +13,7 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatDelegate;
 import java.lang.annotation.Retention;
 import java.util.Locale;
+import moe.shizuku.manager.service.WatchdogManager;
 import moe.shizuku.manager.service.WatchdogService;
 import moe.shizuku.manager.receiver.BootCompleteReceiver;
 import moe.shizuku.manager.utils.Token;
@@ -158,13 +159,13 @@ public class ShizukuSettings {
     }
 
     public static void setWatchdog(Context context, boolean enable) {
+        getPreferences().edit().putBoolean(Keys.KEY_WATCHDOG, enable).apply();
         if (enable) {
+            WatchdogManager.INSTANCE.clearUserStopRequest(context);
             WatchdogService.start(context);
         } else {
             WatchdogService.stop(context);
         }
-        getPreferences().edit().putBoolean(Keys.KEY_WATCHDOG, enable).apply();
-        return;
     }
 
     public static boolean getTcpMode() {

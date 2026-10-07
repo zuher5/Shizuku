@@ -27,6 +27,7 @@ import moe.shizuku.manager.databinding.HomeActivityBinding
 import moe.shizuku.manager.home.showAccessibilityDialog
 import moe.shizuku.manager.ktx.toHtml
 import moe.shizuku.manager.management.AppsViewModel
+import moe.shizuku.manager.service.WatchdogManager
 import moe.shizuku.manager.settings.SettingsActivity
 import moe.shizuku.manager.utils.AppIconCache
 import moe.shizuku.manager.utils.CustomTabsHelper
@@ -237,8 +238,7 @@ abstract class HomeActivity : AppBarActivity() {
                     MaterialAlertDialogBuilder(this)
                         .setMessage(R.string.dialog_stop_message)
                         .setPositiveButton(android.R.string.ok) { _: DialogInterface?, _: Int ->
-                            ShizukuStateMachine.set(ShizukuStateMachine.State.STOPPING)
-                            runCatching { Shizuku.exit() }
+                            WatchdogManager.requestStopServer(this, userInitiated = true)
                         }
                         .setNegativeButton(android.R.string.cancel, null)
                         .show()
