@@ -9,20 +9,30 @@ import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import moe.shizuku.manager.ShizukuApplication
 import moe.shizuku.manager.ShizukuSettings
 import rikka.shizuku.Shizuku
-
-private val appContext = ShizukuApplication.appContext
 
 object ShizukuStateMachine {
 
     enum class State { STARTING, RUNNING, STOPPING, STOPPED, CRASHED }
 
-    private var state = AtomicReference<State>(State.STOPPED)
+    private val state = AtomicReference<State>(State.STOPPED)
     private val listeners = CopyOnWriteArrayList<(State) -> Unit>()
+    private var listenersRegistered = false
 
     init {
+        registerListeners()
+        if (Shizuku.pingBinder()) {
+            state.set(State.RUNNING)
+        }
+    }
+
+    private fun registerListeners() {
+        if (listenersRegistered) return
+        listenersRegistered = true
         Shizuku.addBinderReceivedListenerSticky(
             Shizuku.OnBinderReceivedListener { set(State.RUNNING) }
         )
@@ -34,48 +44,59 @@ object ShizukuStateMachine {
     fun get(): State = state.get()
 
     private fun transition(transform: (State) -> State) {
-        val oldState = state.getAndUpdate(transform)
-        val newState = transform(oldState)
-        if(oldState != newState) {
-            listeners.forEach { it(newState) }
-            Log.d("ShizukuStateMachine", newState.toString())
-        }
+        var oldState: State
+        var newState: State
+        do {
+            oldState = state.get()
+            newState = transform(oldState)
+            if (oldState == newState) return
+        } while (!state.compareAndSet(oldState, newState))
+
+        Log.i("ShizukuStateMachine", "State transition: $oldState -> $newState")
+        listeners.forEach { it(newState) }
     }
 
     fun set(newState: State) = transition { newState }
 
-    fun setDead() = transition {
-        when (it) {
-            State.RUNNING -> State.CRASHED
-            State.STOPPING -> {
-                try {
-                    val permissionGranted = appContext.checkSelfPermission(WRITE_SECURE_SETTINGS) == PackageManager.PERMISSION_GRANTED
-                    val shouldDisableUsbDebugging = permissionGranted && ShizukuSettings.getAutoDisableUsbDebugging()
-                    if (shouldDisableUsbDebugging) {
-                        Settings.Global.putInt(appContext.contentResolver, Settings.Global.ADB_ENABLED, 0)
-                    }
-                } catch (e: Exception) {
-                    Log.w("ShizukuStateMachine", "Failed to disable USB debugging", e)
-                }
-                State.STOPPED
+    fun setDead() {
+        var oldState: State
+        var newState: State
+        do {
+            oldState = state.get()
+            newState = when (oldState) {
+                State.RUNNING -> State.CRASHED
+                State.STOPPING -> State.STOPPED
+                else -> oldState
             }
-            else -> it
+            if (oldState == newState) return
+        } while (!state.compareAndSet(oldState, newState))
+
+        Log.i("ShizukuStateMachine", "State transition: $oldState -> $newState")
+        listeners.forEach { it(newState) }
+
+        if (oldState == State.STOPPING && newState == State.STOPPED) {
+            try {
+                val context = ShizukuApplication.appContext
+                val permissionGranted = context.checkSelfPermission(WRITE_SECURE_SETTINGS) == PackageManager.PERMISSION_GRANTED
+                val shouldDisableUsbDebugging = permissionGranted && ShizukuSettings.getAutoDisableUsbDebugging()
+                if (shouldDisableUsbDebugging) {
+                    Settings.Global.putInt(context.contentResolver, Settings.Global.ADB_ENABLED, 0)
+                }
+            } catch (e: Exception) {
+                Log.w("ShizukuStateMachine", "Failed to disable USB debugging", e)
+            }
         }
     }
 
     fun update(): State {
-        val state = if (Shizuku.pingBinder()) State.RUNNING else State.STOPPED
-        set(state)
-        return state
+        val currentState = if (Shizuku.pingBinder()) State.RUNNING else State.STOPPED
+        set(currentState)
+        return currentState
     }
 
-    fun isRunning(): Boolean {
-        return get() == State.RUNNING
-    }
+    fun isRunning(): Boolean = get() == State.RUNNING
 
-    fun isDead(): Boolean {
-        return (get() == State.STOPPED || get() == State.CRASHED) 
-    }
+    fun isDead(): Boolean = get() == State.STOPPED || get() == State.CRASHED
 
     fun addListener(listener: (State) -> Unit) {
         listeners.add(listener)
@@ -92,4 +113,24 @@ object ShizukuStateMachine {
         awaitClose { removeListener(listener) }
     }
 
+    suspend fun awaitRunning(timeoutMs: Long = 10_000L): Boolean {
+        if (isRunning() || Shizuku.pingBinder()) {
+            if (!isRunning()) set(State.RUNNING)
+            return true
+        }
+        return withTimeoutOrNull(timeoutMs) {
+            asFlow().first { it == State.RUNNING }
+            true
+        } ?: (isRunning() || Shizuku.pingBinder())
+    }
+
+    suspend fun awaitStopped(timeoutMs: Long = 5_000L): Boolean {
+        if (isDead() && !Shizuku.pingBinder()) {
+            return true
+        }
+        return withTimeoutOrNull(timeoutMs) {
+            asFlow().first { it == State.STOPPED || it == State.CRASHED }
+            true
+        } ?: (isDead() || !Shizuku.pingBinder())
+    }
 }
