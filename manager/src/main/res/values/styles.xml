@@ -81,7 +81,6 @@
         <item name="cardCornerRadius">28dp</item>
         <item name="contentPadding">24dp</item>
         <item name="cardBackgroundColor">?colorSecondaryContainer</item>
-        <item name="cardElevation">2dp</item>
     </style>
 
     <style name="StaticCopyTextInput" parent="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.Dense">

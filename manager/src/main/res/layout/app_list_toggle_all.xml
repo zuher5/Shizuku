@@ -17,7 +17,6 @@
     app:contentPaddingRight="16dp"
     app:contentPaddingTop="8dp"
     app:contentPaddingBottom="8dp"
-    app:cardElevation="2dp"
     app:strokeWidth="0dp">
 
     <LinearLayout
