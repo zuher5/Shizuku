@@ -9,6 +9,7 @@ import com.topjohnwu.superuser.Shell
 import moe.shizuku.manager.ktx.logd
 import moe.shizuku.manager.service.WatchdogManager
 import moe.shizuku.manager.utils.ShizukuStateMachine
+import moe.shizuku.manager.worker.AdbNetworkObserver
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 import rikka.core.util.BuildUtils.atLeast30
 import rikka.material.app.LocaleDelegate
@@ -45,6 +46,7 @@ class ShizukuApplication : Application() {
 
         WatchdogManager.init(context)
         WatchdogManager.reconcileService(context)
+        AdbNetworkObserver.register(this)
     }
 
     override fun onCreate() {

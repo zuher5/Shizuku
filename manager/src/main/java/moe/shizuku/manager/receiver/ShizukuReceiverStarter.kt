@@ -103,14 +103,17 @@ object ShizukuReceiverStarter {
     }
 
     fun updateNotification(context: Context, state: WorkerState) {
-        if (state == WorkerState.STOPPED) return
+        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (state == WorkerState.STOPPED) {
+            nm.cancel(NOTIFICATION_ID)
+            return
+        }
         val msgId = when (state) {
             WorkerState.AWAITING_WIFI -> R.string.wadb_notification_wifi_required
             WorkerState.AWAITING_RETRY -> R.string.wadb_notification_retry
             else -> null
         }
         val msg = if (msgId != null) context.getString(msgId) else null
-        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         nm.notify(NOTIFICATION_ID, buildNotification(context, msg))
     }
 

@@ -202,6 +202,10 @@ class AdbStartWorker(context: Context, params: WorkerParameters) : CoroutineWork
     }
 
     companion object {
+        const val UNIQUE_WORK_NAME = "adb_start_worker"
+        const val CHANNEL_ID = "AdbStartWorker"
+        const val NOTIFICATION_ID = 1448
+
         fun enqueue(context: Context) {
             val cb = Constraints.Builder()
             if (EnvironmentUtils.isWifiRequired())
@@ -213,7 +217,7 @@ class AdbStartWorker(context: Context, params: WorkerParameters) : CoroutineWork
                 .build()
 
             WorkManager.getInstance(context).enqueueUniqueWork(
-                "adb_start_worker",
+                UNIQUE_WORK_NAME,
                 ExistingWorkPolicy.REPLACE,
                 request
             )
@@ -221,10 +225,14 @@ class AdbStartWorker(context: Context, params: WorkerParameters) : CoroutineWork
 
         fun enqueueIfIdle(context: Context) {
             if (ShizukuStateMachine.isRunning()) return
+            try {
+                val infos = WorkManager.getInstance(context)
+                    .getWorkInfosForUniqueWork(UNIQUE_WORK_NAME)
+                    .get()
+                if (infos.any { it.state == WorkInfo.State.RUNNING }) return
+            } catch (_: Throwable) {
+            }
             enqueue(context)
         }
-
-        const val CHANNEL_ID = "AdbStartWorker"
-        const val NOTIFICATION_ID = 1448
     }
 }
