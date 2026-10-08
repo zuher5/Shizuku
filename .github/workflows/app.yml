@@ -134,8 +134,8 @@ jobs:
           VERSION="${{ needs.build.outputs.versionName }}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag "$VERSION" -m "Release version $VERSION"
-          git push origin "$VERSION"
+          git tag -fa "$VERSION" -m "Release version $VERSION"
+          git push -f origin "$VERSION"
 
       - name: Download Artifact
         uses: actions/download-artifact@v7
@@ -143,11 +143,15 @@ jobs:
           name: ${{ needs.build.outputs.artifactName }}
           path: files
 
-      - name: Create Release
+      - name: Create or Update Release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_VERSION: ${{ needs.build.outputs.versionName }}
         run: |
-          FLAGS=""
-          [ "${{ inputs.prerelease }}" = "true" ] && FLAGS="$FLAGS --prerelease"
-          gh release create "$RELEASE_VERSION" files/*.apk $FLAGS --generate-notes
+          if gh release view "$RELEASE_VERSION" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_VERSION" files/*.apk --clobber
+          else
+            FLAGS=""
+            [ "${{ inputs.prerelease }}" = "true" ] && FLAGS="$FLAGS --prerelease"
+            gh release create "$RELEASE_VERSION" files/*.apk $FLAGS --generate-notes
+          fi
