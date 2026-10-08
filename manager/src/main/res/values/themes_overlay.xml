@@ -12,7 +12,6 @@
         <item name="colorSurfaceContainer">#1E2026</item>
         <item name="colorSurfaceContainerHigh">#262830</item>
         <item name="colorSurfaceContainerHighest">#30323C</item>
-        <item name="colorOutlineVariant">#2C2E38</item>
     </style>
 
     <style name="ThemeOverlay.DynamicColors.Light" parent="ThemeOverlay.Material3.DynamicColors.Light.Shizuku"/>
