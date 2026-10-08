@@ -1,123 +1,98 @@
 <div align="center">
    
-# Shizuku
+# Shizuku (Zuher5 Fork)
 
-An Android app that allows other apps to use system-level APIs that require ADB/root privileges.
+A reliability-focused fork of [thedjchi/Shizuku](https://github.com/thedjchi/Shizuku) with enhanced server lifecycle management, intelligent watchdog recovery, and refined OLED dark mode styling.
 
-**I'm pausing maintenance for the time being, I simply haven't had time to work on this and it was a side project.**
-
-[![Stars](https://img.shields.io/github/stars/thedjchi/Shizuku?style=for-the-badge&color=bfb330&labelColor=807820&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHRpdGxlPnN0YXI8L3RpdGxlPjxwYXRoIGQ9Ik0xMiwxNy4yN0wxOC4xOCwyMUwxNi41NCwxMy45N0wyMiw5LjI0TDE0LjgxLDguNjJMMTIsMkw5LjE5LDguNjJMMiw5LjI0TDcuNDUsMTMuOTdMNS44MiwyMUwxMiwxNy4yN1oiIGZpbGw9IndoaXRlIiAvPjwvc3ZnPg==)](https://github.com/thedjchi/Shizuku/stargazers)
-[![Downloads](https://img.shields.io/github/downloads/thedjchi/Shizuku/total?style=for-the-badge&color=bf7830&labelColor=805020&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHRpdGxlPmRvd25sb2FkPC90aXRsZT48cGF0aCBkPSJNNSwyMEgxOVYxOEg1TTE5LDlIMTVWM0g5VjlINUwxMiwxNkwxOSw5WiIgZmlsbD0id2hpdGUiIC8+PC9zdmc+)](https://github.com/thedjchi/Shizuku/releases)
-
-[![Latest Stable](https://img.shields.io/github/v/release/thedjchi/Shizuku?style=for-the-badge&color=3060bf&labelColor=204080&label=Latest%20Stable&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGhlaWdodD0iMjRweCIgdmlld0JveD0iMCAtOTYwIDk2MCA5NjAiIHdpZHRoPSIyNHB4IiBmaWxsPSIjZTNlM2UzIj48cGF0aCBkPSJNNDQwLTgycS03Ni04LTE0MS41LTQxLjV0LTExNC04N1ExMzYtMjY0IDEwOC0zMzNUODAtNDgwcTAtOTEgMzYuNS0xNjhUMjE2LTc4MGgtOTZ2LTgwaDI0MHYyNDBoLTgwdi0xMDlxLTU1IDQ0LTg3LjUgMTA4LjVUMTYwLTQ4MHEwIDEyMyA4MC41IDIxMi41VDQ0MC0xNjN2ODFabS0xNy0yMTRMMjU0LTQ2Nmw1Ni01NiAxMTMgMTEzIDIyNy0yMjcgNTYgNTctMjgzIDI4M1ptMTc3IDE5NnYtMjQwaDgwdjEwOXE1NS00NSA4Ny41LTEwOVQ4MDAtNDgwcTAtMTIzLTgwLjUtMjEyLjVUNTIwLTc5N3YtODFxMTUyIDE1IDI1NiAxMjh0MTA0IDI3MHEwIDkxLTM2LjUgMTY4VDc0NC0xODBoOTZ2ODBINjAwWiIvPjwvc3ZnPg==)](https://github.com/thedjchi/Shizuku/releases/latest?q=prerelease%3Afalse&expanded=true)
-[![Latest Beta](https://img.shields.io/github/v/release/thedjchi/Shizuku?sort=semver&style=for-the-badge&color=30bf60&labelColor=208040&label=Latest%20Beta&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGhlaWdodD0iMjRweCIgdmlld0JveD0iMCAtOTYwIDk2MCA5NjAiIHdpZHRoPSIyNHB4IiBmaWxsPSIjZTNlM2UzIj48cGF0aCBkPSJNMjAwLTEyMHEtNTEgMC03Mi41LTQ1LjVUMTM4LTI1MGwyMjItMjcwdi0yNDBoLTQwcS0xNyAwLTI4LjUtMTEuNVQyODAtODAwcTAtMTcgMTEuNS0yOC41VDMyMC04NDBoMzIwcTE3IDAgMjguNSAxMS41VDY4MC04MDBxMCAxNy0xMS41IDI4LjVUNjQwLTc2MGgtNDB2MjQwbDIyMiAyNzBxMzIgMzkgMTAuNSA4NC41VDc2MC0xMjBIMjAwWm04MC0xMjBoNDAwTDU0NC00MDBINDE2TDI4MC0yNDBabS04MCA0MGg1NjBMNTIwLTQ5MnYtMjY4aC04MHYyNjhMMjAwLTIwMFptMjgwLTI4MFoiLz48L3N2Zz4=)](https://github.com/thedjchi/Shizuku/releases)
-
-[![Bug Reports](https://img.shields.io/github/issues-search/thedjchi/Shizuku?query=label%3Abug%20state%3Aopen&style=for-the-badge&color=bf3030&labelColor=802020&label=Bug%20Reports)](https://github.com/thedjchi/Shizuku/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug)
-[![Feature Requests](https://img.shields.io/github/issues-search/thedjchi/Shizuku?query=label%3Aenhancement%20state%3Aopen&style=for-the-badge&color=30a7bf&labelColor=207080&label=Feature%20Requests)](https://github.com/thedjchi/Shizuku/issues?q=is%3Aissue%20state%3Aopen%20label%3Aenhancement)
-
-[![Translate on Crowdin](https://img.shields.io/badge/Translate%20on%20Crowdin-2e3340?style=for-the-badge&logo=crowdin&logoColor=ffffff)](https://crowdin.com/project/shizuku)
-[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-bfb330?style=for-the-badge&logo=buymeacoffee&logoColor=ffffff)](https://www.buymeacoffee.com/thedjchi)
+[![Latest Release](https://img.shields.io/github/v/release/zuher5/Shizuku?style=for-the-badge&color=3060bf&labelColor=204080&label=Release)](https://github.com/zuher5/Shizuku/releases/latest)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/zuher5/Shizuku/app.yml?branch=master&style=for-the-badge&label=Build)](https://github.com/zuher5/Shizuku/actions)
+[![License](https://img.shields.io/github/license/zuher5/Shizuku?style=for-the-badge&color=4caf50&labelColor=2e7d32)](LICENSE)
 
 </div>
 
-## ⚠️ Disclaimer
+---
 
-This is a **FORK** of Shizuku. If you are looking for the original version, please visit the [RikkaApps/Shizuku](https://github.com/RikkaApps/Shizuku) repository.
+## ⚠️ Disclaimer & Lineage
+
+This is a **personal reliability fork** of Shizuku.
+* Upstream base: [thedjchi/Shizuku](https://github.com/thedjchi/Shizuku)
+* Original upstream: [RikkaApps/Shizuku](https://github.com/RikkaApps/Shizuku)
+
+This fork retains the exact UI/UX, features, and API compatibility of `thedjchi/Shizuku`, while hardening server resilience and background recovery under modern aggressive Android ROMs.
+
+---
 
 ## ⬇️ Download
 
-Get the latest [stable](https://github.com/thedjchi/Shizuku/releases/latest) or [beta](https://github.com/thedjchi/Shizuku/releases) version.
+Download the latest signed release APK from [GitHub Releases](https://github.com/zuher5/Shizuku/releases).
 
-All versions are distributed via [GitHub Releases](https://github.com/thedjchi/Shizuku/releases).
+- **Current Release:** `shizuku-v13.7.0-Zuher5.apk`
+- Signed permanently with a dedicated release keystore for seamless updates.
 
-## ✨ Added Features
+---
 
-This version of Shizuku includes some extra features over the original version, such as:
-* **More robust "start on boot":** waits for a Wi-Fi connection before starting the Shizuku service
-* **TCP mode:** (i.e., the `adb tcpip` command) once Shizuku successfully starts with Wi-Fi after a reboot, you can stop/restart Shizuku without a Wi-Fi connection!
-* **Watchdog service:** automatically restarts Shizuku if it stops unexpectedly, and can alert you of crashes/potential fixes
-* **Start/stop intents:** toggle Shizuku on-demand using automation apps (e.g., Tasker, MacroDroid, Automate)
-* **[BETA] Stealth mode:** hide Shizuku from other apps that don't work when Shizuku is installed
-* **[BETA] In-app updates:** option to automatically check for new updates, and can automatically download/install the latest version from GitHub
-* **Android/Google TV and VR headset support:** UI is now compatible with D-Pad remotes, all TVs are supported (including Android 14+ TVs that require pairing), and the multi-window pairing dialog is toggleable in settings for VR headsets
-* **MediaTek support:** fixes a critical bug in the original v13.6.0 which prevented Shizuku from working on MediaTek devices
-* And more!
+## 🚀 Key Improvements in this Fork
 
-## 📝 User Guide
+### 🛡️ 1. Resilient Watchdog & Lifecycle Architecture
+- **Atomic State Machine (`ShizukuStateMachine`):** Lifecycle states (`STARTING`, `RUNNING`, `STOPPING`, `STOPPED`, `CRASHED`) are tracked via atomic CAS transitions to eliminate race conditions.
+- **Decoupled Architecture:** Clean separation of responsibilities:
+  - `ShizukuStateMachine`: owns state state-transitions and reactive flow.
+  - `WatchdogManager`: orchestrates recovery policies, locks, and cooldowns.
+  - `WatchdogService`: lightweight Android foreground service handling health observation.
+- **Zombie Binder Detection:** Health checks verify not just `pingBinder()`, but active IPC transactions. If a deadlocked/zombie binder is detected, recovery triggers automatically.
+- **Single-Flight Recovery Guard:** Atomic locks prevent recovery collisions from concurrent Binder deaths, health timers, and boot receivers.
+- **Monotonic Cooldown & Backoff:** Uses `SystemClock.elapsedRealtime()` for drift-free restart pacing, avoiding aggressive loops and saving battery.
+- **Intentional Stop Protection:** Explicit user stops and intentional restarts carry a bounded expiration to suppress false crash alarms.
+- **Lockscreen-Aware ADB Recovery:** Waits for `USER_PRESENT` before attempting wireless ADB restart when the device is locked.
 
-Please read the [wiki](https://github.com/thedjchi/Shizuku/wiki) for setup, info, and troubleshooting steps.
+### 📶 2. Network & Hostile ROM Hardening
+- **`AdbNetworkObserver`:** Reactive network callback monitoring unmetered Wi-Fi connectivity with debounce protection.
+- **`WifiDebugReassert`:** Automatically re-asserts `adb_wifi_enabled` (0 → 1) upon Wi-Fi reconnection on hostile Android ROMs (such as MIUI / HyperOS, ColorOS, OxygenOS) that silently disable wireless debugging in the background.
 
-## ☑️ Requirements
+### 🎨 3. Refined OLED Dark Mode & Card Depth
+- **True OLED Black Theme:** Pure `#000000` background for AMOLED/OLED battery savings.
+- **Natural Material 3 Filled Card Fade:** Restored soft grey container background (`#1E2026`) that smoothly contrasts against OLED black without harsh borders (`strokeWidth=0dp`) or abrupt drop-shadow cutoffs (`elevation=0dp`), matching the natural depth of Material 3.
 
-**Minimum Version: Android 7+**
-- **Root mode:** Requires a rooted device
-- **Wireless Debugging mode:** Works on Android 11+ and all Android TVs
-- **PC mode:** Works on all devices
-- **Start on boot:** Available only when using Wireless Debugging or Root mode
+### ⚙️ 4. Lightweight & Bloat-Free
+- No analytics, tracking, or telemetry.
+- Zero extra heavy dependencies; strictly standard library, native Android APIs, and existing project dependencies.
+- Sub-4MB APK size with all native architectures included (`arm64-v8a`, `armeabi-v7a`, `x86`, `x86_64`).
 
-## 🔒 Privacy
+---
 
-Shizuku takes user privacy very seriously.
+## 📋 Features from thedjchi Base
 
-* No tracking or analytics
-* No telemetry
-* No proprietary libraries
-* No Google Play Services
-* Open-source codebase
-* Reproducible builds
-* Internet access is only used for wireless debugging connections and to fetch updates from GitHub
-* Only required permissions are declared
+- **TCP mode (`adb tcpip`):** Once started after reboot over Wi-Fi, service can be stopped and restarted without requiring an active Wi-Fi connection.
+- **Start on boot:** Background initialization for root or wireless debugging.
+- **Stealth mode:** Conceal Shizuku from detection on compatible environments.
+- **TV & Large Screen Support:** D-Pad navigation support for Android TV / Google TV.
+- **MediaTek Fixes:** Preserved critical compatibility fixes for MediaTek devices.
+- **Automation Intents:** Start/stop intents for Tasker, MacroDroid, and Automate.
 
-### Permissions
+---
 
-* **INTERNET:** required for the wireless debugging start mode to work. Also used to fetch updates from GitHub
-* **ACCESS_NETWORK_STATE:** used to determine when Wi-Fi is available for background start via wireless debugging
-* **POST_NOTIFICATIONS:** required for pairing notification and other alerts
-* **RECEIVE_BOOT_COMPLETED:** required for start on boot
-* **FOREGROUND_SERVICE:** prevents watchdog from being killed
-* **REQUEST_IGNORE_BATTERY_OPTIMIZATIONS:** prevents start on boot and watchdog services from being killed
-* **WRITE_SECURE_SETTINGS:** used to toggle USB and wireless debugging in the background when starting/stopping Shizuku
-* **REQUEST_DELETE_PACKAGES:** used to request uninstall for Shizuku/stub when using stealth mode
-* **REQUEST_INSTALL_PACKAGES:** used to request install for app updates, as well as Shizuku stub when using stealth mode
+## 📱 Requirements
 
-## 🌎 Translations
+- **Android 7.0+** (API 24+)
+- **Root Mode:** Requires root privileges (Magisk / KernelSU / APatch)
+- **Wireless Debugging Mode:** Android 11+
+- **USB ADB Mode:** Any supported Android version via PC
 
-Contribute translations through the [Crowdin project](https://crowdin.com/project/shizuku).
+---
 
-## 🎁 Donations
+## 🛠️ Building
 
-This Shizuku fork and all of its features will always be free, and there will never be ads. If you've found any of the added features to be useful, consider [donating](https://www.buymeacoffee.com/thedjchi) to help me maintain the project!
+Application builds are managed authoritatively via **GitHub Actions** CI workflows to ensure reproducible builds and consistent release signing.
 
-## 📱 Developer Guide
+For local development and unit tests:
+```bash
+git clone --recurse-submodules https://github.com/zuher5/Shizuku.git
+cd Shizuku
+./gradlew test
+```
 
-### API & Demo Project
-The API guide and a demo project are available in the [Shizuku-API](https://github.com/thedjchi/Shizuku-API) repository
-
-### Notes
-
-1. Shizuku has different permissions in root and ADB mode. You can see permissions granted to ADB [here](https://cs.android.com/android/platform/superproject/main/+/main:frameworks/base/packages/Shell/AndroidManifest.xml).
-   If your app requires root permission, use `ShizukuService#getUid` to check if Shizuku is running as root or ADB, or use `ShizukuService#checkPermission` to check if the server has sufficient permissions.
-2. On devices running Android 8 or lower, if you need to use Shizuku in a Service or Broadcast Receiver that might not be started by an Activity, please trigger the send binder by starting a transparent activity.
-3. Please prefer using `ShizukuBinderWrapper` instead of directly using `transactRemote` when possible, as API calls can change across Android versions.
-
-## 🤝 Contritbuting
-
-### Building the App
-
-- Clone with `git clone --recurse-submodules`
-- Run gradle task `:manager:assembleDebug` or `:manager:assembleRelease`
-
-The `:manager:assembleDebug` task generates a debuggable server. You can attach a debugger to `shizuku_server` to debug the server. In Android Studio, ensure `Run/Debug configurations > Always install with package manager` is checked, so that the server will use the latest code.
-
-### Submitting Changes
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b branch-name`)
-3. Make your changes
-4. Commit your changes (`git commit -m 'Commit message'`)
-5. Push to the branch (`git push origin branch-name`)
-6. Open a Pull Request
+---
 
 ## 📃 License
 
-All code files in this project are licensed under [Apache 2.0](LICENSE)
+Licensed under the [Apache License, Version 2.0](LICENSE).
