@@ -88,15 +88,15 @@
 
 ## Phase 2 — Bound and harden Binder health checks
 
-- [ ] Review `WatchdogManager.checkHealth()` and every synchronous Binder call it makes.
-- [ ] Keep health checks off the main thread.
-- [ ] Use bounded execution that stops waiting when a Binder transaction hangs; do not assume `withTimeout` cancels a synchronous Binder call.
-- [ ] Avoid creating an unbounded number of stuck health-check threads.
-- [ ] Define health outcomes clearly: no/dead Binder, alive but unresponsive (zombie), and healthy.
-- [ ] Keep real remote transactions only if safe, cheap, and supported by the current Shizuku API.
-- [ ] For a zombie Binder, request graceful stop, wait for stopped/dead state with a bounded timeout, then recover.
-- [ ] Require a successful post-recovery health check before declaring recovery successful.
-- [ ] Ensure failed health checks cannot trigger overlapping recovery attempts.
+- [x] Review `WatchdogManager.checkHealth()` and every synchronous Binder call it makes.
+- [x] Keep health checks off the main thread.
+- [x] Use bounded execution that stops waiting when a Binder transaction hangs; do not assume `withTimeout` cancels a synchronous Binder call.
+- [x] Avoid creating an unbounded number of stuck health-check threads.
+- [x] Define health outcomes clearly: no/dead Binder, alive but unresponsive (zombie), and healthy.
+- [x] Keep real remote transactions only if safe, cheap, and supported by the current Shizuku API.
+- [x] For a zombie Binder, request graceful stop, wait for stopped/dead state with a bounded timeout, then recover.
+- [x] Require a successful post-recovery health check before declaring recovery successful.
+- [x] Ensure failed health checks cannot trigger overlapping recovery attempts.
 
 **Tests**
 - [ ] Missing Binder is classified as dead.
