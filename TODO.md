@@ -20,12 +20,12 @@
 
 ## Phase 0 — Baseline and safety
 
-- [ ] Confirm the working tree is clean and create a dedicated feature branch.
-- [ ] Read `PRD.md` and `AGENTS.md` before editing.
-- [ ] Record the current build result and relevant Gradle tasks.
-- [ ] Inspect launch modes, settings keys, Binder APIs, manifest service declarations, and existing ADB/TCP startup paths.
-- [ ] Check licenses and preserve required attribution for adapted code.
-- [ ] Keep changes focused; do not redesign UI or migrate to Compose/Material 3.
+- [x] Confirm the working tree is clean and create a dedicated feature branch.
+- [x] Read `PRD.md` and `AGENTS.md` before editing.
+- [x] Record the current build result and relevant Gradle tasks.
+- [x] Inspect launch modes, settings keys, Binder APIs, manifest service declarations, and existing ADB/TCP startup paths.
+- [x] Check licenses and preserve required attribution for adapted code.
+- [x] Keep changes focused; do not redesign UI or migrate to Compose/Material 3.
 
 **Done when:** the starting commit, build command, affected files, and compatibility constraints are recorded.
 
@@ -33,10 +33,10 @@
 
 ### 1.1 Make initialization/listener registration thread-safe
 
-- [ ] Replace the non-atomic `initialized` check/set in `WatchdogManager.init()` with a thread-safe one-time initialization pattern.
-- [ ] Ensure Binder listeners are registered exactly once even when initialization is triggered from multiple entry points.
-- [ ] Verify `Application`, boot receiver, and service startup can all call initialization safely.
-- [ ] Avoid holding a lock while performing callbacks or long-running work.
+- [x] Replace the non-atomic `initialized` check/set in `WatchdogManager.init()` with a thread-safe one-time initialization pattern.
+- [x] Ensure Binder listeners are registered exactly once even when initialization is triggered from multiple entry points.
+- [x] Verify `Application`, boot receiver, and service startup can all call initialization safely.
+- [x] Avoid holding a lock while performing callbacks or long-running work.
 
 **Tests**
 - [ ] Concurrent initialization calls register listeners only once.
@@ -44,13 +44,13 @@
 
 ### 1.2 Make recovery admission atomic
 
-- [ ] Review ordering of user-stop, watchdog-enabled, expected-death, launch-mode, retry-limit, cooldown, and restart-lock checks.
-- [ ] Make cooldown/retry admission and acquisition of the restart lock race-safe.
-- [ ] Ensure only one recovery attempt can start at a time.
-- [ ] Set the restart timestamp only when an attempt is actually admitted.
-- [ ] Always release the restart lock in `finally`, including exceptions and cancellation.
-- [ ] Use a lifecycle-owned coroutine scope or clearly owned scope instead of creating an untracked `CoroutineScope(Dispatchers.IO)` for every attempt.
-- [ ] Handle `CancellationException` separately; do not swallow coroutine cancellation as a generic failure.
+- [x] Review ordering of user-stop, watchdog-enabled, expected-death, launch-mode, retry-limit, cooldown, and restart-lock checks.
+- [x] Make cooldown/retry admission and acquisition of the restart lock race-safe.
+- [x] Ensure only one recovery attempt can start at a time.
+- [x] Set the restart timestamp only when an attempt is actually admitted.
+- [x] Always release the restart lock in `finally`, including exceptions and cancellation.
+- [x] Use a lifecycle-owned coroutine scope or clearly owned scope instead of creating an untracked `CoroutineScope(Dispatchers.IO)` for every attempt.
+- [x] Handle `CancellationException` separately; do not swallow coroutine cancellation as a generic failure.
 
 **Tests**
 - [ ] Two simultaneous crash/health events start at most one recovery.
@@ -59,12 +59,12 @@
 
 ### 1.3 Fix retry accounting and backoff
 
-- [ ] Count failed recovery paths consistently, including exceptions and timeouts.
-- [ ] Mark recovery successful only after Binder returns and the health check passes.
-- [ ] Reset retry count only after verified recovery.
-- [ ] Confirm backoff indexing and first-retry delay are correct.
-- [ ] After maximum attempts, stop automatic retries until an explicit reset/re-enable or a defined new recovery session.
-- [ ] Log attempt number, reason, delay, and exhausted state without log spam.
+- [x] Count failed recovery paths consistently, including exceptions and timeouts.
+- [x] Mark recovery successful only after Binder returns and the health check passes.
+- [x] Reset retry count only after verified recovery.
+- [x] Confirm backoff indexing and first-retry delay are correct.
+- [x] After maximum attempts, stop automatic retries until an explicit reset/re-enable or a defined new recovery session.
+- [x] Log attempt number, reason, delay, and exhausted state without log spam.
 
 **Tests**
 - [ ] Timeout increments attempt count.
@@ -75,11 +75,11 @@
 
 ### 1.4 Preserve expected-death and user-stop semantics
 
-- [ ] Verify intentional stop/restart operations do not trigger crash recovery.
-- [ ] Verify user-requested stop persists across process recreation.
-- [ ] Verify expected-death state expires and cannot suppress recovery indefinitely.
-- [ ] Verify explicit server start clears the user-stop flag only where intended.
-- [ ] Verify disabling watchdog stops monitoring and prevents new recovery attempts.
+- [x] Verify intentional stop/restart operations do not trigger crash recovery.
+- [x] Verify user-requested stop persists across process recreation.
+- [x] Verify expected-death state expires and cannot suppress recovery indefinitely.
+- [x] Verify explicit server start clears the user-stop flag only where intended.
+- [x] Verify disabling watchdog stops monitoring and prevents new recovery attempts.
 
 **Tests**
 - [ ] User stop does not auto-restart the server.
