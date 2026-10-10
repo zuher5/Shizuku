@@ -6,9 +6,16 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.DeadObjectException
+import android.os.Looper
 import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import com.topjohnwu.superuser.Shell
+import java.util.concurrent.Callable
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
@@ -37,6 +44,7 @@ object WatchdogManager {
     private const val MIN_RESTART_INTERVAL_MS = 15_000L
     private const val MAX_RECOVERY_ATTEMPTS = 5
     private const val KEY_USER_STOP_REQUESTED = "watchdog_user_stop_requested"
+    private const val HEALTH_CHECK_TIMEOUT_MS = 3_000L
 
     private val BACKOFF_DELAYS_MS = longArrayOf(15_000L, 30_000L, 60_000L, 120_000L)
 
@@ -71,11 +79,30 @@ object WatchdogManager {
     private val watchdogJob = SupervisorJob()
     private val watchdogScope = CoroutineScope(watchdogJob + Dispatchers.IO)
 
+    private val healthCheckInProgress = AtomicBoolean(false)
+    private val healthCheckExecutor = Executors.newCachedThreadPool { runnable ->
+        Thread(runnable, "watchdog-health-check").apply { isDaemon = true }
+    }
+
+    enum class HealthStatus {
+        HEALTHY,
+        ZOMBIE,
+        DEAD
+    }
+
     data class HealthResult(
-        val healthy: Boolean,
+        val status: HealthStatus,
         val reason: String,
-        val binderAlive: Boolean
-    )
+        val healthy: Boolean = status == HealthStatus.HEALTHY,
+        val binderAlive: Boolean = status != HealthStatus.DEAD
+    ) {
+        constructor(healthy: Boolean, reason: String, binderAlive: Boolean) : this(
+            status = if (healthy) HealthStatus.HEALTHY else if (binderAlive) HealthStatus.ZOMBIE else HealthStatus.DEAD,
+            reason = reason,
+            healthy = healthy,
+            binderAlive = binderAlive
+        )
+    }
 
     sealed class AdmissionResult {
         data class Admitted(val mode: Int, val attempts: Int, val delayMs: Long) : AdmissionResult()
@@ -264,36 +291,92 @@ object WatchdogManager {
     }
 
     fun checkHealth(): HealthResult {
-        try {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            logw("Watchdog: checkHealth() called on main thread!")
+        }
+
+        if (!healthCheckInProgress.compareAndSet(false, true)) {
+            return HealthResult(
+                HealthStatus.ZOMBIE,
+                "health check already in progress or previously hung in transaction"
+            )
+        }
+
+        val future = healthCheckExecutor.submit(Callable {
+            try {
+                performDirectHealthCheck()
+            } finally {
+                healthCheckInProgress.set(false)
+            }
+        })
+
+        return try {
+            future.get(HEALTH_CHECK_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+        } catch (e: TimeoutException) {
+            future.cancel(true)
+            HealthResult(
+                HealthStatus.ZOMBIE,
+                "binder transaction timed out after ${HEALTH_CHECK_TIMEOUT_MS}ms"
+            )
+        } catch (e: ExecutionException) {
+            val cause = e.cause ?: e
+            HealthResult(
+                HealthStatus.DEAD,
+                "binder check failed: ${cause.javaClass.simpleName} - ${cause.message}"
+            )
+        } catch (e: InterruptedException) {
+            HealthResult(
+                HealthStatus.DEAD,
+                "binder check interrupted"
+            )
+        }
+    }
+
+    private fun performDirectHealthCheck(): HealthResult {
+        return try {
             val binder = Shizuku.getBinder()
-                ?: return HealthResult(false, "binder is null", false)
+                ?: return HealthResult(HealthStatus.DEAD, "binder is null")
+
+            if (!binder.isBinderAlive) {
+                return HealthResult(HealthStatus.DEAD, "binder is not alive")
+            }
+
             val ping = try {
                 Shizuku.pingBinder() && binder.pingBinder()
             } catch (e: Throwable) {
                 false
             }
             if (!ping) {
-                return HealthResult(false, "pingBinder() failed", false)
+                return HealthResult(HealthStatus.DEAD, "pingBinder() failed")
             }
+
             val version = try {
                 Shizuku.getVersion()
             } catch (e: Throwable) {
-                return HealthResult(false, "binder transaction failed: ${e.javaClass.simpleName}", true)
+                val isDead = e is DeadObjectException || !binder.isBinderAlive
+                val status = if (isDead) HealthStatus.DEAD else HealthStatus.ZOMBIE
+                return HealthResult(status, "getVersion failed: ${e.javaClass.simpleName} - ${e.message}")
             }
             if (version <= 0) {
-                return HealthResult(false, "bad remote version=$version", true)
+                return HealthResult(HealthStatus.ZOMBIE, "bad remote version=$version")
             }
+
             val uid = try {
                 Shizuku.getUid()
             } catch (e: Throwable) {
-                return HealthResult(false, "getUid transaction failed: ${e.javaClass.simpleName}", true)
+                val isDead = e is DeadObjectException || !binder.isBinderAlive
+                val status = if (isDead) HealthStatus.DEAD else HealthStatus.ZOMBIE
+                return HealthResult(status, "getUid failed: ${e.javaClass.simpleName} - ${e.message}")
             }
             if (uid < 0) {
-                return HealthResult(false, "bad remote uid=$uid", true)
+                return HealthResult(HealthStatus.ZOMBIE, "bad remote uid=$uid")
             }
-            return HealthResult(true, "ok version=$version uid=$uid", true)
+
+            HealthResult(HealthStatus.HEALTHY, "ok version=$version uid=$uid")
         } catch (e: Throwable) {
-            return HealthResult(false, "check threw ${e.javaClass.simpleName}: ${e.message}", Shizuku.pingBinder())
+            val alive = try { Shizuku.pingBinder() } catch (t: Throwable) { false }
+            val status = if (alive) HealthStatus.ZOMBIE else HealthStatus.DEAD
+            HealthResult(status, "check threw ${e.javaClass.simpleName}: ${e.message}")
         }
     }
 
@@ -346,6 +429,8 @@ object WatchdogManager {
                         return@launch
                     } else {
                         logw("Watchdog: zombie binder detected (${health.reason})")
+                        requestStopServer(app, userInitiated = false)
+                        ShizukuStateMachine.awaitStopped(3_000L)
                     }
                 } else {
                     logw("Watchdog: recovery failed (timeout waiting for binder)")
