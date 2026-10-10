@@ -116,6 +116,17 @@ class WatchdogService : Service() {
                 delay(healthCheckIntervalMs)
                 if (!WatchdogManager.isEnabled()) break
 
+                if (WatchdogManager.isRestartInProgress()) {
+                    logd("Watchdog: restart in progress, skipping periodic health check")
+                    continue
+                }
+
+                if (WatchdogManager.isExpectingDeathActive() || WatchdogManager.isStarterActive) {
+                    logd("Watchdog: death expected or starter active, skipping periodic health check")
+                    consecutiveFailures = 0
+                    continue
+                }
+
                 val result = WatchdogManager.checkHealth()
                 if (result.healthy) {
                     if (consecutiveFailures > 0) {
@@ -143,7 +154,7 @@ class WatchdogService : Service() {
         if (ShizukuSettings.getLastLaunchMode() == ShizukuSettings.LaunchMethod.UNKNOWN) return
 
         withContext(Dispatchers.IO) {
-            if (result.binderAlive) {
+            if (result.status == WatchdogManager.HealthStatus.ZOMBIE || result.binderAlive) {
                 logw("Watchdog: zombie binder detected (${result.reason}). Stopping server before restart...")
                 WatchdogManager.requestStopServer(applicationContext, userInitiated = false)
                 ShizukuStateMachine.awaitStopped(3_000L)

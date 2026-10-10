@@ -21,7 +21,7 @@ object ShizukuStateMachine {
 
     private val state = AtomicReference<State>(State.STOPPED)
     private val listeners = CopyOnWriteArrayList<(State) -> Unit>()
-    private var listenersRegistered = false
+    private val listenersRegistered = java.util.concurrent.atomic.AtomicBoolean(false)
 
     init {
         registerListeners()
@@ -31,8 +31,7 @@ object ShizukuStateMachine {
     }
 
     private fun registerListeners() {
-        if (listenersRegistered) return
-        listenersRegistered = true
+        if (!listenersRegistered.compareAndSet(false, true)) return
         Shizuku.addBinderReceivedListenerSticky(
             Shizuku.OnBinderReceivedListener { set(State.RUNNING) }
         )
