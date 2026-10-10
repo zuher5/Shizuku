@@ -126,12 +126,12 @@
 
 ## Phase 4 — Add automated tests
 
-- [ ] Add unit tests for `ShizukuStateMachine` transitions and concurrent updates.
-- [ ] Add tests for Watchdog decisions using testable abstractions/fakes where practical.
-- [ ] Cover user-stop, expected-death, disabled watchdog, unknown launch mode, cooldown, backoff, maximum attempts, and recovery verification.
-- [ ] Keep tests deterministic; prefer fake clocks/injected dispatchers over real timing sleeps.
-- [ ] Add instrumentation/manual test notes for device-dependent Binder and wireless ADB cases.
-- [ ] Avoid broad refactors solely for testability; extract small interfaces only where needed.
+- [x] Add unit tests for `ShizukuStateMachine` transitions and concurrent updates.
+- [x] Add tests for Watchdog decisions using testable abstractions/fakes where practical.
+- [x] Cover user-stop, expected-death, disabled watchdog, unknown launch mode, cooldown, backoff, maximum attempts, and recovery verification.
+- [x] Keep tests deterministic; prefer fake clocks/injected dispatchers over real timing sleeps.
+- [x] Add instrumentation/manual test notes for device-dependent Binder and wireless ADB cases.
+- [x] Avoid broad refactors solely for testability; extract small interfaces only where needed.
 
 **Done when:** core state/recovery decisions have automated regression coverage and device-only scenarios are documented.
 
