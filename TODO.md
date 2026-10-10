@@ -152,37 +152,37 @@
 
 ### 6.1 Evaluate heartbeat monitoring
 
-- [ ] Decide whether Binder ping + real transaction checks miss a specific failure mode.
-- [ ] If needed, prototype a heartbeat with a documented timeout and low polling overhead.
-- [ ] Do not run two independent watchdog loops that can trigger recovery simultaneously.
-- [ ] Measure battery and reliability impact before enabling heartbeat by default.
+- [x] Decide whether Binder ping + real transaction checks miss a specific failure mode.
+- [x] If needed, prototype a heartbeat with a documented timeout and low polling overhead.
+- [x] Do not run two independent watchdog loops that can trigger recovery simultaneously.
+- [x] Measure battery and reliability impact before enabling heartbeat by default.
 
 ### 6.2 Evaluate launch-mode recovery
 
-- [ ] Confirm exact launch modes supported by this fork before adding a recovery branch.
-- [ ] Current launch-mode annotation includes `UNKNOWN`, `ROOT`, and `ADB`; do not add Dhizuku/TCP recovery by assumption.
-- [ ] If a new mode is deliberately supported, define startup, stop, verification, permission, and failure behavior end-to-end.
-- [ ] Preserve existing TCP behavior rather than conflating it with ADB worker recovery.
-- [ ] Add tests and user-facing status/error handling for any newly supported mode.
+- [x] Confirm exact launch modes supported by this fork before adding a recovery branch.
+- [x] Current launch-mode annotation includes `UNKNOWN`, `ROOT`, and `ADB`; do not add Dhizuku/TCP recovery by assumption.
+- [x] If a new mode is deliberately supported, define startup, stop, verification, permission, and failure behavior end-to-end.
+- [x] Preserve existing TCP behavior rather than conflating it with ADB worker recovery.
+- [x] Add tests and user-facing status/error handling for any newly supported mode.
 
 ### 6.3 Reliability observability
 
-- [ ] Ensure logs identify health result, launch mode, attempt number, and recovery outcome.
-- [ ] Prevent notification spam during repeated failure.
-- [ ] Make exhausted recovery visible without claiming the server recovered when verification failed.
+- [x] Ensure logs identify health result, launch mode, attempt number, and recovery outcome.
+- [x] Prevent notification spam during repeated failure.
+- [x] Make exhausted recovery visible without claiming the server recovered when verification failed.
 
 ## Final acceptance checklist
 
-- [ ] Existing UI/UX is unchanged except for a necessary, explicitly scoped reliability status/setting.
-- [ ] Package IDs, public APIs, and existing launch flows remain compatible.
-- [ ] Watchdog initialization and recovery are thread-safe.
-- [ ] Binder health checks are bounded and never block the main thread.
-- [ ] User-stop and expected-death protections work.
-- [ ] Recovery is serialized, has bounded retries/backoff, and is verified.
-- [ ] ADB unique work does not duplicate or cancel valid work unexpectedly.
-- [ ] Automated tests and CI pass; exact commands/results are reported.
-- [ ] No secrets, keystores, generated build outputs, or unrelated files are committed.
-- [ ] Implementation summary lists changed files, tests run, results, and known limitations.
+- [x] Existing UI/UX is unchanged except for a necessary, explicitly scoped reliability status/setting.
+- [x] Package IDs, public APIs, and existing launch flows remain compatible.
+- [x] Watchdog initialization and recovery are thread-safe.
+- [x] Binder health checks are bounded and never block the main thread.
+- [x] User-stop and expected-death protections work.
+- [x] Recovery is serialized, has bounded retries/backoff, and is verified.
+- [x] ADB unique work does not duplicate or cancel valid work unexpectedly.
+- [x] Automated tests and CI pass; exact commands/results are reported.
+- [x] No secrets, keystores, generated build outputs, or unrelated files are committed.
+- [x] Implementation summary lists changed files, tests run, results, and known limitations.
 
 ## Suggested commit sequence
 
