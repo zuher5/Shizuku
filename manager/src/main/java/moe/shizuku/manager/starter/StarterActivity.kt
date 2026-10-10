@@ -135,6 +135,7 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
         started = true
 
         viewModelScope.launch(handler) {
+            WatchdogManager.clearUserStopRequest(appContext)
             if (root) startRoot()
             else AdbStarter.startAdb(appContext, port, { log(it) })
             Starter.waitForBinder({ log(it) })

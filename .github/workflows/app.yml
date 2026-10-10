@@ -35,7 +35,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.prerelease && 'beta' || 'master' }}
+          ref: ${{ inputs.prerelease && 'beta' || github.ref }}
           submodules: 'recursive'
           fetch-depth: 0
 

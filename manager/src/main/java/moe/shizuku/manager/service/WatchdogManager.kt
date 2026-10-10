@@ -11,8 +11,11 @@ import androidx.core.app.NotificationCompat
 import com.topjohnwu.superuser.Shell
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import moe.shizuku.manager.R
 import moe.shizuku.manager.ShizukuSettings
@@ -40,32 +43,33 @@ object WatchdogManager {
     @Volatile
     var isStarterActive = false
 
-    @Volatile
-    var expectingDeath = false
+    private val expectedDeathDeadlineMillis = AtomicLong(0L)
+
+    var expectingDeath: Boolean
+        get() = isExpectingDeathActive()
         set(value) {
-            field = value
-            expectedDeathDeadlineMillis = if (value) {
-                SystemClock.elapsedRealtime() + EXPECTED_DEATH_WINDOW_MS
+            if (value) {
+                expectedDeathDeadlineMillis.set(SystemClock.elapsedRealtime() + EXPECTED_DEATH_WINDOW_MS)
             } else {
-                0L
+                expectedDeathDeadlineMillis.set(0L)
             }
         }
 
-    @Volatile
-    private var expectedDeathDeadlineMillis = 0L
-
-    @Volatile
-    private var initialized = false
-
+    private val initialized = AtomicBoolean(false)
     private val restartInProgress = AtomicBoolean(false)
 
     @Volatile
     private var lastRestartAttemptMs = 0L
 
     private val recoveryAttempts = AtomicInteger(0)
+    private val userStopRequested = AtomicBoolean(false)
 
     @Volatile
-    private var userStopRequested = false
+    private var appContext: Context? = null
+
+    private val admissionLock = Any()
+    private val watchdogJob = SupervisorJob()
+    private val watchdogScope = CoroutineScope(watchdogJob + Dispatchers.IO)
 
     data class HealthResult(
         val healthy: Boolean,
@@ -73,26 +77,50 @@ object WatchdogManager {
         val binderAlive: Boolean
     )
 
-    fun init(context: Context) {
-        val appContext = context.applicationContext
-        if (initialized) return
-        initialized = true
+    sealed class AdmissionResult {
+        data class Admitted(val mode: Int, val attempts: Int, val delayMs: Long) : AdmissionResult()
+        data class Cooldown(val remainingMs: Long) : AdmissionResult()
+        data class Skipped(val reason: String) : AdmissionResult()
+        object Exhausted : AdmissionResult()
+    }
 
-        userStopRequested = ShizukuSettings.getPreferences()?.getBoolean(KEY_USER_STOP_REQUESTED, false) ?: false
+    private val binderReceivedListener = Shizuku.OnBinderReceivedListener {
+        logi("Binder received")
+        expectedDeathDeadlineMillis.set(0L)
+        recoveryAttempts.set(0)
+        val context = appContext
+        if (context != null) {
+            clearUserStopRequest(context)
+        } else {
+            clearUserStopRequest()
+        }
+    }
+
+    private val binderDeadListener = Shizuku.OnBinderDeadListener {
+        logw("Binder died")
+        val context = appContext
+        if (context != null) {
+            onServiceDied(context)
+        }
+    }
+
+    fun init(context: Context) {
+        val app = context.applicationContext
+        synchronized(admissionLock) {
+            if (this.appContext == null) {
+                this.appContext = app
+            }
+        }
+        if (!initialized.compareAndSet(false, true)) return
+
+        userStopRequested.set(
+            ShizukuSettings.getPreferences()?.getBoolean(KEY_USER_STOP_REQUESTED, false) ?: false
+        )
 
         logi("Watchdog: initialized")
 
-        Shizuku.addBinderReceivedListenerSticky {
-            logi("Binder received")
-            expectingDeath = false
-            recoveryAttempts.set(0)
-            clearUserStopRequest(appContext)
-        }
-
-        Shizuku.addBinderDeadListener {
-            logw("Binder died")
-            onServiceDied(appContext)
-        }
+        Shizuku.addBinderReceivedListenerSticky(binderReceivedListener)
+        Shizuku.addBinderDeadListener(binderDeadListener)
     }
 
     fun isEnabled(): Boolean {
@@ -101,10 +129,12 @@ object WatchdogManager {
 
     fun isExpectingDeathActive(): Boolean {
         if (isStarterActive) return true
-        if (!expectingDeath) return false
-        val deadline = expectedDeathDeadlineMillis
-        if (deadline == 0L) return true
-        return SystemClock.elapsedRealtime() <= deadline
+        val deadline = expectedDeathDeadlineMillis.get()
+        if (deadline == 0L) return false
+        val now = SystemClock.elapsedRealtime()
+        if (now <= deadline) return true
+        expectedDeathDeadlineMillis.compareAndSet(deadline, 0L)
+        return false
     }
 
     fun shouldRunService(): Boolean {
@@ -112,15 +142,27 @@ object WatchdogManager {
     }
 
     fun reconcileService(context: Context) {
-        val appContext = context.applicationContext
+        val app = context.applicationContext
+        synchronized(admissionLock) {
+            if (this.appContext == null) {
+                this.appContext = app
+            }
+        }
         if (shouldRunService()) {
-            WatchdogService.start(appContext)
+            WatchdogService.start(app)
         } else {
-            WatchdogService.stop(appContext)
+            WatchdogService.stop(app)
         }
     }
 
     fun onServiceDied(context: Context) {
+        val app = context.applicationContext
+        synchronized(admissionLock) {
+            if (this.appContext == null) {
+                this.appContext = app
+            }
+        }
+
         if (isStarterActive) {
             logi("Starter active, suppressing watchdog restart")
             return
@@ -136,19 +178,18 @@ object WatchdogManager {
             return
         }
 
-        showCrashNotification(context)
+        showCrashNotification(app)
 
         if (isEnabled()) {
-            attemptRestart(context)
+            attemptRestart(app)
         }
     }
 
     private fun consumeExpectedDeath(): Boolean {
-        if (!expectingDeath) return false
+        val deadline = expectedDeathDeadlineMillis.getAndSet(0L)
+        if (deadline == 0L) return false
         val now = SystemClock.elapsedRealtime()
-        val deadline = expectedDeathDeadlineMillis
-        expectingDeath = false
-        if (deadline == 0L || now <= deadline) {
+        if (now <= deadline) {
             return true
         }
         logd("Ignoring stale expected-death flag")
@@ -157,19 +198,69 @@ object WatchdogManager {
 
     fun clearUserStopRequest(context: Context? = null) {
         setUserStopRequested(false)
-        expectingDeath = false
+        expectedDeathDeadlineMillis.set(0L)
+        recoveryAttempts.set(0)
         context?.let { reconcileService(it) }
     }
 
     fun setUserStopRequested(value: Boolean) {
-        userStopRequested = value
+        userStopRequested.set(value)
         ShizukuSettings.getPreferences()?.edit()
             ?.putBoolean(KEY_USER_STOP_REQUESTED, value)
             ?.apply()
     }
 
     fun isUserStopRequested(): Boolean {
-        return userStopRequested || (ShizukuSettings.getPreferences()?.getBoolean(KEY_USER_STOP_REQUESTED, false) ?: false)
+        if (initialized.get()) {
+            return userStopRequested.get()
+        }
+        return ShizukuSettings.getPreferences()?.getBoolean(KEY_USER_STOP_REQUESTED, false) ?: false
+    }
+
+    fun getRequiredCooldown(attempts: Int): Long {
+        if (attempts <= 0) return MIN_RESTART_INTERVAL_MS
+        val index = (attempts - 1).coerceIn(0, BACKOFF_DELAYS_MS.lastIndex)
+        return BACKOFF_DELAYS_MS[index]
+    }
+
+    fun getRecoveryAttempts(): Int = recoveryAttempts.get()
+
+    fun isRestartInProgress(): Boolean = restartInProgress.get()
+
+    fun tryAdmitRestart(): AdmissionResult {
+        synchronized(admissionLock) {
+            if (!isEnabled()) {
+                return AdmissionResult.Skipped("watchdog disabled")
+            }
+            if (isUserStopRequested()) {
+                return AdmissionResult.Skipped("user stop requested")
+            }
+            if (isStarterActive) {
+                return AdmissionResult.Skipped("starter active")
+            }
+            if (isExpectingDeathActive()) {
+                return AdmissionResult.Skipped("death expected")
+            }
+            val lastMode = ShizukuSettings.getLastLaunchMode()
+            if (lastMode == ShizukuSettings.LaunchMethod.UNKNOWN) {
+                return AdmissionResult.Skipped("UNKNOWN launch mode")
+            }
+            val attempts = recoveryAttempts.get()
+            if (attempts >= MAX_RECOVERY_ATTEMPTS) {
+                return AdmissionResult.Exhausted
+            }
+            val now = SystemClock.elapsedRealtime()
+            val requiredCooldown = getRequiredCooldown(attempts)
+            val elapsed = now - lastRestartAttemptMs
+            if (lastRestartAttemptMs > 0L && elapsed < requiredCooldown) {
+                return AdmissionResult.Cooldown(requiredCooldown - elapsed)
+            }
+            if (!restartInProgress.compareAndSet(false, true)) {
+                return AdmissionResult.Skipped("already in progress")
+            }
+            lastRestartAttemptMs = now
+            return AdmissionResult.Admitted(lastMode, attempts, requiredCooldown)
+        }
     }
 
     fun checkHealth(): HealthResult {
@@ -207,58 +298,43 @@ object WatchdogManager {
     }
 
     fun attemptRestart(context: Context) {
-        val appContext = context.applicationContext
-
-        if (isStarterActive) {
-            logi("Recovery skipped (starter active)")
-            return
+        val app = context.applicationContext
+        synchronized(admissionLock) {
+            if (this.appContext == null) {
+                this.appContext = app
+            }
         }
 
-        if (isUserStopRequested()) {
-            logi("Recovery skipped (user stop requested)")
-            return
+        val admission = tryAdmitRestart()
+        when (admission) {
+            is AdmissionResult.Skipped -> {
+                logd("Recovery skipped (${admission.reason})")
+                return
+            }
+            is AdmissionResult.Exhausted -> {
+                logw("Watchdog: maximum recovery attempts reached")
+                return
+            }
+            is AdmissionResult.Cooldown -> {
+                logd("Watchdog: cooldown active (${admission.remainingMs}ms remaining)")
+                return
+            }
+            is AdmissionResult.Admitted -> {
+                // Proceed
+            }
         }
 
-        if (!isEnabled()) {
-            logi("Recovery skipped (watchdog disabled)")
-            return
-        }
+        val admitted = admission as AdmissionResult.Admitted
+        val attemptNum = admitted.attempts + 1
 
-        val lastMode = ShizukuSettings.getLastLaunchMode()
-        if (lastMode == ShizukuSettings.LaunchMethod.UNKNOWN) {
-            logd("Recovery skipped: UNKNOWN launch mode")
-            return
-        }
-
-        val attempts = recoveryAttempts.get()
-        if (attempts >= MAX_RECOVERY_ATTEMPTS) {
-            logw("Watchdog: maximum recovery attempts reached")
-            return
-        }
-
-        val now = SystemClock.elapsedRealtime()
-        val backoffDelayIndex = (attempts - 1).coerceIn(0, BACKOFF_DELAYS_MS.lastIndex)
-        val requiredCooldown = if (attempts > 0) BACKOFF_DELAYS_MS[backoffDelayIndex] else MIN_RESTART_INTERVAL_MS
-
-        if (now - lastRestartAttemptMs < requiredCooldown) {
-            logd("Watchdog: cooldown active")
-            return
-        }
-
-        if (!restartInProgress.compareAndSet(false, true)) {
-            logd("Recovery skipped: already in progress")
-            return
-        }
-        lastRestartAttemptMs = now
-
-        CoroutineScope(Dispatchers.IO).launch {
+        watchdogScope.launch {
             try {
-                logi("Watchdog: recovery started (mode=$lastMode, attempt=${attempts + 1})")
+                logi("Watchdog: recovery started (mode=${admitted.mode}, attempt=$attemptNum/$MAX_RECOVERY_ATTEMPTS, delay=${admitted.delayMs}ms)")
 
-                when (lastMode) {
+                when (admitted.mode) {
                     ShizukuSettings.LaunchMethod.ROOT -> restartRoot()
-                    ShizukuSettings.LaunchMethod.ADB -> restartAdb(appContext)
-                    else -> logd("Unknown launch mode: $lastMode")
+                    ShizukuSettings.LaunchMethod.ADB -> restartAdb(app)
+                    else -> logd("Unknown launch mode: ${admitted.mode}")
                 }
 
                 val binderReceived = ShizukuStateMachine.awaitRunning(15_000L)
@@ -280,8 +356,15 @@ object WatchdogManager {
                 if (newAttempts >= MAX_RECOVERY_ATTEMPTS) {
                     logw("Watchdog: maximum recovery attempts reached")
                 }
+            } catch (e: CancellationException) {
+                logd("Watchdog: recovery cancelled")
+                throw e
             } catch (t: Throwable) {
-                logw("Watchdog: recovery failed with exception: ${t.message}")
+                val newAttempts = recoveryAttempts.incrementAndGet()
+                logw("Watchdog: recovery failed with exception (attempt $newAttempts/$MAX_RECOVERY_ATTEMPTS): ${t.message}")
+                if (newAttempts >= MAX_RECOVERY_ATTEMPTS) {
+                    logw("Watchdog: maximum recovery attempts reached")
+                }
             } finally {
                 restartInProgress.set(false)
             }
