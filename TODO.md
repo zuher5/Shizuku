@@ -107,15 +107,15 @@
 
 ## Phase 3 — Make ADB worker scheduling race-safe
 
-- [ ] Review `AdbStartWorker.enqueueIfIdle()` and current `ExistingWorkPolicy`.
-- [ ] Remove synchronous WorkManager status reads from sensitive execution paths.
-- [ ] Prefer unique-work semantics that prevent duplicate workers without cancelling valid in-progress recovery.
-- [ ] Recheck Binder/server state inside the worker immediately before startup work.
-- [ ] Ensure a second watchdog event cannot replace/cancel a worker already handling ADB authentication or waiting for unlock.
-- [ ] Preserve current Wi-Fi/TCP behavior and notifications.
-- [ ] Verify receiver and ContentObserver cleanup on success, failure, timeout, and cancellation.
-- [ ] While locked, avoid repeated wireless ADB retries when user authorization is required; resume appropriately after `USER_PRESENT`.
-- [ ] Keep retries bounded and compatible with WorkManager constraints.
+- [x] Review `AdbStartWorker.enqueueIfIdle()` and current `ExistingWorkPolicy`.
+- [x] Remove synchronous WorkManager status reads from sensitive execution paths.
+- [x] Prefer unique-work semantics that prevent duplicate workers without cancelling valid in-progress recovery.
+- [x] Recheck Binder/server state inside the worker immediately before startup work.
+- [x] Ensure a second watchdog event cannot replace/cancel a worker already handling ADB authentication or waiting for unlock.
+- [x] Preserve current Wi-Fi/TCP behavior and notifications.
+- [x] Verify receiver and ContentObserver cleanup on success, failure, timeout, and cancellation.
+- [x] While locked, avoid repeated wireless ADB retries when user authorization is required; resume appropriately after `USER_PRESENT`.
+- [x] Keep retries bounded and compatible with WorkManager constraints.
 
 **Tests**
 - [ ] Multiple enqueue requests produce at most one effective worker.
