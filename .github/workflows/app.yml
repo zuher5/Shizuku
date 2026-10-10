@@ -76,10 +76,10 @@ jobs:
           echo 'org.gradle.parallel=true' >> gradle.properties
 
           if [ "${{ inputs.debug }}" = "true" ]; then
-            CMD="./gradlew :manager:assembleDebug"
+            CMD="./gradlew testDebugUnitTest :manager:assembleDebug"
             APK_DIR="manager/build/outputs/apk/debug"
           else
-            CMD="./gradlew :manager:assembleRelease"
+            CMD="./gradlew testReleaseUnitTest :manager:assembleRelease"
             APK_DIR="manager/build/outputs/apk/release"
           fi
 

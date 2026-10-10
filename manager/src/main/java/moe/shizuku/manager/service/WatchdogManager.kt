@@ -244,11 +244,7 @@ object WatchdogManager {
         return ShizukuSettings.getPreferences()?.getBoolean(KEY_USER_STOP_REQUESTED, false) ?: false
     }
 
-    fun getRequiredCooldown(attempts: Int): Long {
-        if (attempts <= 0) return MIN_RESTART_INTERVAL_MS
-        val index = (attempts - 1).coerceIn(0, BACKOFF_DELAYS_MS.lastIndex)
-        return BACKOFF_DELAYS_MS[index]
-    }
+    fun getRequiredCooldown(attempts: Int): Long = WatchdogDecisions.getRequiredCooldown(attempts)
 
     fun getRecoveryAttempts(): Int = recoveryAttempts.get()
 
@@ -256,37 +252,24 @@ object WatchdogManager {
 
     fun tryAdmitRestart(): AdmissionResult {
         synchronized(admissionLock) {
-            if (!isEnabled()) {
-                return AdmissionResult.Skipped("watchdog disabled")
+            val result = WatchdogDecisions.evaluateAdmission(
+                isEnabled = isEnabled(),
+                isUserStopRequested = isUserStopRequested(),
+                isStarterActive = isStarterActive,
+                isExpectingDeathActive = isExpectingDeathActive(),
+                launchMode = ShizukuSettings.getLastLaunchMode(),
+                attempts = recoveryAttempts.get(),
+                now = SystemClock.elapsedRealtime(),
+                lastRestartAttemptMs = lastRestartAttemptMs,
+                isRestartInProgress = restartInProgress.get()
+            )
+            if (result is AdmissionResult.Admitted) {
+                if (!restartInProgress.compareAndSet(false, true)) {
+                    return AdmissionResult.Skipped("already in progress")
+                }
+                lastRestartAttemptMs = SystemClock.elapsedRealtime()
             }
-            if (isUserStopRequested()) {
-                return AdmissionResult.Skipped("user stop requested")
-            }
-            if (isStarterActive) {
-                return AdmissionResult.Skipped("starter active")
-            }
-            if (isExpectingDeathActive()) {
-                return AdmissionResult.Skipped("death expected")
-            }
-            val lastMode = ShizukuSettings.getLastLaunchMode()
-            if (lastMode == ShizukuSettings.LaunchMethod.UNKNOWN) {
-                return AdmissionResult.Skipped("UNKNOWN launch mode")
-            }
-            val attempts = recoveryAttempts.get()
-            if (attempts >= MAX_RECOVERY_ATTEMPTS) {
-                return AdmissionResult.Exhausted
-            }
-            val now = SystemClock.elapsedRealtime()
-            val requiredCooldown = getRequiredCooldown(attempts)
-            val elapsed = now - lastRestartAttemptMs
-            if (lastRestartAttemptMs > 0L && elapsed < requiredCooldown) {
-                return AdmissionResult.Cooldown(requiredCooldown - elapsed)
-            }
-            if (!restartInProgress.compareAndSet(false, true)) {
-                return AdmissionResult.Skipped("already in progress")
-            }
-            lastRestartAttemptMs = now
-            return AdmissionResult.Admitted(lastMode, attempts, requiredCooldown)
+            return result
         }
     }
 
