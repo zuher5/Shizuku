@@ -86,21 +86,11 @@ object AdbNetworkObserver {
 
         scope.launch {
             try {
-                val isRunning = withTimeoutOrNull(5_000L) {
-                    val info = WorkManager.getInstance(app.applicationContext)
-                        .getWorkInfosForUniqueWork(AdbStartWorker.UNIQUE_WORK_NAME)
-                        .get()
-                        .firstOrNull()
-                    info?.state == WorkInfo.State.RUNNING
-                } ?: false
-
-                if (!isRunning) {
-                    AdbStartWorker.enqueue(app.applicationContext)
-                    ShizukuReceiverStarter.updateNotification(
-                        app.applicationContext,
-                        ShizukuReceiverStarter.WorkerState.AWAITING_WIFI
-                    )
-                }
+                AdbStartWorker.enqueueIfIdle(app.applicationContext)
+                ShizukuReceiverStarter.updateNotification(
+                    app.applicationContext,
+                    ShizukuReceiverStarter.WorkerState.AWAITING_WIFI
+                )
             } catch (e: Exception) {
                 Log.w(TAG, "onUnmeteredAvailable enqueue failed", e)
             }

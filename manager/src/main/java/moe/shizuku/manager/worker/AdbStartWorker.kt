@@ -32,9 +32,13 @@ import moe.shizuku.manager.R
 import moe.shizuku.manager.ShizukuSettings
 import moe.shizuku.manager.adb.AdbMdns
 import moe.shizuku.manager.adb.AdbStarter
+import moe.shizuku.manager.ktx.logd
+import moe.shizuku.manager.ktx.logi
+import moe.shizuku.manager.ktx.logw
 import moe.shizuku.manager.receiver.ShizukuReceiverStarter
 import moe.shizuku.manager.receiver.ShizukuReceiverStarter.WorkerState
 import moe.shizuku.manager.receiver.ShizukuReceiverStarter.updateNotification
+import moe.shizuku.manager.service.WatchdogManager
 import moe.shizuku.manager.settings.BugReportDialogActivity
 import moe.shizuku.manager.starter.Starter
 import moe.shizuku.manager.utils.EnvironmentUtils
@@ -42,6 +46,18 @@ import moe.shizuku.manager.utils.ShizukuStateMachine
 
 class AdbStartWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
+        if (ShizukuStateMachine.isRunning() && WatchdogManager.checkHealth().healthy) {
+            logi("AdbStartWorker: Shizuku is already running and healthy, skipping worker")
+            val nm = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.cancel(ShizukuReceiverStarter.NOTIFICATION_ID)
+            return Result.success()
+        }
+
+        if (runAttemptCount >= 3) {
+            logw("AdbStartWorker: maximum retry count reached ($runAttemptCount)")
+            return Result.failure()
+        }
+
         try {
             updateNotification(
                 applicationContext,
@@ -89,17 +105,26 @@ class AdbStartWorker(context: Context, params: WorkerParameters) : CoroutineWork
                         )
                         setForegroundAsync(foregroundInfo)
 
-                        val filter = IntentFilter(Intent.ACTION_USER_PRESENT)
-                        unlockReceiver = object : BroadcastReceiver() {
-                            override fun onReceive(context: Context, intent: Intent) {
-                                if (intent.action == Intent.ACTION_USER_PRESENT) {
-                                    context.unregisterReceiver(this)
-                                    unlockReceiver = null
-                                    Settings.Global.putInt(cr, "adb_wifi_enabled", 1)
+                        if (unlockReceiver == null) {
+                            val filter = IntentFilter(Intent.ACTION_USER_PRESENT)
+                            val receiver = object : BroadcastReceiver() {
+                                override fun onReceive(context: Context, intent: Intent) {
+                                    if (intent.action == Intent.ACTION_USER_PRESENT) {
+                                        try {
+                                            context.unregisterReceiver(this)
+                                        } catch (_: Exception) {}
+                                        unlockReceiver = null
+                                        Settings.Global.putInt(cr, "adb_wifi_enabled", 1)
+                                    }
                                 }
                             }
+                            unlockReceiver = receiver
+                            try {
+                                applicationContext.registerReceiver(receiver, filter)
+                            } catch (e: Exception) {
+                                logw("Failed to register unlockReceiver: ${e.message}")
+                            }
                         }
-                        applicationContext.registerReceiver(unlockReceiver, filter)
                     } else awaitingAuth = true
                     timeoutJob?.cancel()
                     adbMdns.stop()
@@ -123,8 +148,15 @@ class AdbStartWorker(context: Context, params: WorkerParameters) : CoroutineWork
                 awaitClose {
                     adbMdns.stop()
                     timeoutJob?.cancel()
-                    cr.unregisterContentObserver(observer)
-                    unlockReceiver?.let { applicationContext.unregisterReceiver(it) }
+                    try {
+                        cr.unregisterContentObserver(observer)
+                    } catch (_: Exception) {}
+                    unlockReceiver?.let {
+                        try {
+                            applicationContext.unregisterReceiver(it)
+                        } catch (_: Exception) {}
+                        unlockReceiver = null
+                    }
                 }
             }.first()
             
@@ -163,7 +195,7 @@ class AdbStartWorker(context: Context, params: WorkerParameters) : CoroutineWork
                     applicationContext,
                     WorkerState.AWAITING_RETRY
                 )
-                return Result.retry()
+                return if (runAttemptCount < 3) Result.retry() else Result.failure()
             }
         }
     }
@@ -206,7 +238,7 @@ class AdbStartWorker(context: Context, params: WorkerParameters) : CoroutineWork
         const val CHANNEL_ID = "AdbStartWorker"
         const val NOTIFICATION_ID = 1448
 
-        fun enqueue(context: Context) {
+        fun enqueue(context: Context, policy: ExistingWorkPolicy = ExistingWorkPolicy.KEEP) {
             val cb = Constraints.Builder()
             if (EnvironmentUtils.isWifiRequired())
                 cb.setRequiredNetworkType(NetworkType.UNMETERED)
@@ -218,21 +250,14 @@ class AdbStartWorker(context: Context, params: WorkerParameters) : CoroutineWork
 
             WorkManager.getInstance(context).enqueueUniqueWork(
                 UNIQUE_WORK_NAME,
-                ExistingWorkPolicy.REPLACE,
+                policy,
                 request
             )
         }
 
         fun enqueueIfIdle(context: Context) {
             if (ShizukuStateMachine.isRunning()) return
-            try {
-                val infos = WorkManager.getInstance(context)
-                    .getWorkInfosForUniqueWork(UNIQUE_WORK_NAME)
-                    .get()
-                if (infos.any { it.state == WorkInfo.State.RUNNING }) return
-            } catch (_: Throwable) {
-            }
-            enqueue(context)
+            enqueue(context, ExistingWorkPolicy.KEEP)
         }
     }
 }
