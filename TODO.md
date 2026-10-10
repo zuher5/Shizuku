@@ -137,14 +137,14 @@
 
 ## Phase 5 — Add CI for push and pull request
 
-- [ ] Update `.github/workflows/app.yml` or add a dedicated CI workflow for `push` and `pull_request`.
-- [ ] Keep release/tag creation separate from ordinary CI so a pull request cannot publish a release or force-push tags.
-- [ ] Run the appropriate Gradle compile/build task.
-- [ ] Run unit tests and relevant lint/static checks when available.
-- [ ] Use debug builds for routine CI where signing secrets are not required.
-- [ ] Keep release signing/publishing behind explicit trusted/manual conditions.
-- [ ] Upload artifacts only when useful; never expose secrets or signing material.
-- [ ] Verify the workflow on a test branch/PR before relying on it.
+- [x] Update `.github/workflows/app.yml` or add a dedicated CI workflow for `push` and `pull_request`.
+- [x] Keep release/tag creation separate from ordinary CI so a pull request cannot publish a release or force-push tags.
+- [x] Run the appropriate Gradle compile/build task.
+- [x] Run unit tests and relevant lint/static checks when available.
+- [x] Use debug builds for routine CI where signing secrets are not required.
+- [x] Keep release signing/publishing behind explicit trusted/manual conditions.
+- [x] Upload artifacts only when useful; never expose secrets or signing material.
+- [x] Verify the workflow on a test branch/PR before relying on it.
 
 **Done when:** pushes and pull requests receive automated build/test feedback, and normal CI cannot publish releases.
 
