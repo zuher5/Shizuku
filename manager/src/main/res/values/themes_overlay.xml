@@ -1,18 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Default dark theme: neutral dark grey tonal ladder so filled cards
-         remain visually separated from the background. Pure black is
-         reserved exclusively for ThemeOverlay.Black (user opt-in). -->
-    <style name="ThemeOverlay">
-        <item name="android:colorBackground">#1A1B21</item>
-        <item name="colorSurface">#1A1B21</item>
-        <item name="colorSurfaceContainerLowest">#1E1F25</item>
-        <item name="colorSurfaceContainerLow">#23242B</item>
-        <item name="colorSurfaceContainer">#2A2B33</item>
-        <item name="colorSurfaceContainerHigh">#32333C</item>
-        <item name="colorSurfaceContainerHighest">#3C3D47</item>
-        <item name="colorSecondaryContainer">#2E3040</item>
-    </style>
+    <style name="ThemeOverlay"/>
 
     <style name="ThemeOverlay.Black">
         <item name="android:colorPrimary">@android:color/black</item>
