@@ -41,12 +41,9 @@ object WatchdogManager {
     private const val NOTIFICATION_ID_CRASH = 1002
 
     private const val EXPECTED_DEATH_WINDOW_MS = 30_000L
-    private const val MIN_RESTART_INTERVAL_MS = 15_000L
     private const val MAX_RECOVERY_ATTEMPTS = 5
     private const val KEY_USER_STOP_REQUESTED = "watchdog_user_stop_requested"
     private const val HEALTH_CHECK_TIMEOUT_MS = 3_000L
-
-    private val BACKOFF_DELAYS_MS = longArrayOf(15_000L, 30_000L, 60_000L, 120_000L)
 
     @Volatile
     var isStarterActive = false
@@ -95,14 +92,7 @@ object WatchdogManager {
         val reason: String,
         val healthy: Boolean = status == HealthStatus.HEALTHY,
         val binderAlive: Boolean = status != HealthStatus.DEAD
-    ) {
-        constructor(healthy: Boolean, reason: String, binderAlive: Boolean) : this(
-            status = if (healthy) HealthStatus.HEALTHY else if (binderAlive) HealthStatus.ZOMBIE else HealthStatus.DEAD,
-            reason = reason,
-            healthy = healthy,
-            binderAlive = binderAlive
-        )
-    }
+    )
 
     sealed class AdmissionResult {
         data class Admitted(val mode: Int, val attempts: Int, val delayMs: Long) : AdmissionResult()
@@ -243,10 +233,6 @@ object WatchdogManager {
         }
         return ShizukuSettings.getPreferences()?.getBoolean(KEY_USER_STOP_REQUESTED, false) ?: false
     }
-
-    fun getRequiredCooldown(attempts: Int): Long = WatchdogDecisions.getRequiredCooldown(attempts)
-
-    fun getRecoveryAttempts(): Int = recoveryAttempts.get()
 
     fun isRestartInProgress(): Boolean = restartInProgress.get()
 
@@ -474,15 +460,6 @@ object WatchdogManager {
             expectingDeath = false
             e
         }
-    }
-
-    suspend fun stopServerAndWait(
-        context: Context? = null,
-        userInitiated: Boolean = true,
-        timeoutMs: Long = 3_000L
-    ): Boolean {
-        requestStopServer(context, userInitiated)
-        return ShizukuStateMachine.awaitStopped(timeoutMs)
     }
 
     fun showCrashNotification(context: Context) {

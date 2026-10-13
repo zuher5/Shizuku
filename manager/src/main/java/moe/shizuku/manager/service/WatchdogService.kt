@@ -53,7 +53,7 @@ class WatchdogService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_STOP_SERVICE || intent?.action == "ACTION_STOP_SERVICE") {
+        if (intent?.action == ACTION_STOP_SERVICE) {
             logi("WatchdogService: stop requested by user action")
             ShizukuSettings.setWatchdog(applicationContext, false)
             stopSelf()
@@ -154,7 +154,8 @@ class WatchdogService : Service() {
         if (ShizukuSettings.getLastLaunchMode() == ShizukuSettings.LaunchMethod.UNKNOWN) return
 
         withContext(Dispatchers.IO) {
-            if (result.status == WatchdogManager.HealthStatus.ZOMBIE || result.binderAlive) {
+            if (result.binderAlive) {
+                // Unhealthy but the binder proxy still answers: classic zombie
                 logw("Watchdog: zombie binder detected (${result.reason}). Stopping server before restart...")
                 WatchdogManager.requestStopServer(applicationContext, userInitiated = false)
                 ShizukuStateMachine.awaitStopped(3_000L)
@@ -271,11 +272,6 @@ class WatchdogService : Service() {
             } catch (e: Exception) {
                 logw("Failed to stop WatchdogService: ${e.message}")
             }
-        }
-
-        @JvmStatic
-        fun reconcile(context: Context) {
-            WatchdogManager.reconcileService(context)
         }
 
         @JvmStatic
