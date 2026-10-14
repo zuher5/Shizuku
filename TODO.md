@@ -7,14 +7,14 @@
 
 ## Priority overview
 
-- [ ] **P0 — Fix watchdog correctness and concurrency**
-- [ ] **P0 — Bound and harden Binder health checks**
-- [ ] **P0 — Fix recovery attempt accounting and backoff**
-- [ ] **P1 — Make ADB unique-work scheduling race-safe**
-- [ ] **P1 — Add automated tests for state/recovery decisions**
-- [ ] **P1 — Add CI for pushes and pull requests**
-- [ ] **P2 — Evaluate heartbeat monitoring**
-- [ ] **P2 — Evaluate additional launch-mode recovery only if supported**
+- [x] **P0 — Fix watchdog correctness and concurrency**
+- [x] **P0 — Bound and harden Binder health checks**
+- [x] **P0 — Fix recovery attempt accounting and backoff**
+- [x] **P1 — Make ADB unique-work scheduling race-safe**
+- [x] **P1 — Add automated tests for state/recovery decisions**
+- [x] **P1 — Add CI for pushes and pull requests**
+- [x] **P2 — Evaluate heartbeat monitoring**
+- [x] **P2 — Evaluate additional launch-mode recovery only if supported**
 
 ---
 
