@@ -156,6 +156,16 @@ class AdbStartWorker(context: Context, params: WorkerParameters) : CoroutineWork
             AdbStarter.startAdb(applicationContext, port)
             Starter.waitForBinder()
 
+            val health = WatchdogManager.checkHealth()
+            if (!health.healthy) {
+                logw("AdbStartWorker: binder received but health check failed (${health.reason})")
+                updateNotification(
+                    applicationContext,
+                    WorkerState.AWAITING_RETRY
+                )
+                return if (runAttemptCount < 3) Result.retry() else Result.failure()
+            }
+
             val nm = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             nm.cancel(ShizukuReceiverStarter.NOTIFICATION_ID)
 
@@ -181,7 +191,9 @@ class AdbStartWorker(context: Context, params: WorkerParameters) : CoroutineWork
             )
             if (ignored.none { it.isInstance(e) }) showErrorNotification(applicationContext, e)
 
-            if (ShizukuStateMachine.update() == ShizukuStateMachine.State.RUNNING) {
+            if (ShizukuStateMachine.update() == ShizukuStateMachine.State.RUNNING && WatchdogManager.checkHealth().healthy) {
+                val nm = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                nm.cancel(ShizukuReceiverStarter.NOTIFICATION_ID)
                 return Result.success()
             } else {
                 updateNotification(

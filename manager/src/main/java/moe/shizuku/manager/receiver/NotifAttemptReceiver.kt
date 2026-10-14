@@ -8,6 +8,6 @@ import moe.shizuku.manager.worker.AdbStartWorker
 
 class NotifAttemptReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        AdbStartWorker.enqueue(context, ExistingWorkPolicy.REPLACE)
+        AdbStartWorker.enqueue(context, ExistingWorkPolicy.KEEP)
     }
 }
