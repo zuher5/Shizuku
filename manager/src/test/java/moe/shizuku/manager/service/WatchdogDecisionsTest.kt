@@ -180,27 +180,75 @@ class WatchdogDecisionsTest {
     @Test
     fun testHealthResultClassification() {
         val healthy = WatchdogManager.HealthResult(
-            WatchdogManager.HealthStatus.HEALTHY,
-            "alive and responding"
+            status = WatchdogManager.HealthStatus.HEALTHY,
+            reason = "alive and responding",
+            healthy = true,
+            binderAlive = true
         )
         assertTrue(healthy.healthy)
         assertTrue(healthy.binderAlive)
         assertEquals(WatchdogManager.HealthStatus.HEALTHY, healthy.status)
 
-        val zombie = WatchdogManager.HealthResult(
-            WatchdogManager.HealthStatus.ZOMBIE,
-            "timed out"
+        // Zombie with alive proxy
+        val zombieAlive = WatchdogManager.HealthResult(
+            status = WatchdogManager.HealthStatus.ZOMBIE,
+            reason = "timed out",
+            healthy = false,
+            binderAlive = true
         )
-        assertFalse(zombie.healthy)
-        assertTrue(zombie.binderAlive)
-        assertEquals(WatchdogManager.HealthStatus.ZOMBIE, zombie.status)
+        assertFalse(zombieAlive.healthy)
+        assertTrue(zombieAlive.binderAlive)
+        assertEquals(WatchdogManager.HealthStatus.ZOMBIE, zombieAlive.status)
+
+        // Zombie where proxy is not alive (no unneeded stop-server wait)
+        val zombieDead = WatchdogManager.HealthResult(
+            status = WatchdogManager.HealthStatus.ZOMBIE,
+            reason = "getVersion threw DeadObjectException",
+            healthy = false,
+            binderAlive = false
+        )
+        assertFalse(zombieDead.healthy)
+        assertFalse(zombieDead.binderAlive)
+        assertEquals(WatchdogManager.HealthStatus.ZOMBIE, zombieDead.status)
 
         val dead = WatchdogManager.HealthResult(
-            WatchdogManager.HealthStatus.DEAD,
-            "binder null"
+            status = WatchdogManager.HealthStatus.DEAD,
+            reason = "binder null",
+            healthy = false,
+            binderAlive = false
         )
         assertFalse(dead.healthy)
         assertFalse(dead.binderAlive)
         assertEquals(WatchdogManager.HealthStatus.DEAD, dead.status)
+    }
+
+    @Test
+    fun testResetHealthCheckStateClearsGuard() {
+        WatchdogManager.resetHealthCheckState()
+        // Calling reset clears the in-progress flag and resets start time
+        // If a test probe is set, checkHealth should admit the check without being blocked
+        WatchdogManager.healthProbe = {
+            WatchdogManager.HealthResult(
+                status = WatchdogManager.HealthStatus.HEALTHY,
+                reason = "probe healthy",
+                healthy = true,
+                binderAlive = true
+            )
+        }
+        try {
+            val result = WatchdogManager.checkHealth()
+            assertTrue(result.healthy)
+            assertTrue(result.binderAlive)
+            assertEquals("probe healthy", result.reason)
+        } finally {
+            WatchdogManager.healthProbe = null
+            WatchdogManager.resetHealthCheckState()
+        }
+    }
+
+    @Test
+    fun testCancelScheduledRetrySafeWhenNoJob() {
+        // Calling cancelScheduledRetry when no job is active should not throw
+        WatchdogManager.cancelScheduledRetry()
     }
 }
