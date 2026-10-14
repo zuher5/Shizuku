@@ -269,7 +269,11 @@ object WatchdogManager {
         if (initialized.get()) {
             return userStopRequested.get()
         }
-        return ShizukuSettings.getPreferences()?.getBoolean(KEY_USER_STOP_REQUESTED, false) ?: false
+        val prefs = ShizukuSettings.getPreferences()
+        if (prefs != null) {
+            return prefs.getBoolean(KEY_USER_STOP_REQUESTED, userStopRequested.get())
+        }
+        return userStopRequested.get()
     }
 
     fun isRestartInProgress(): Boolean = restartInProgress.get()
