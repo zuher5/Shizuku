@@ -26,7 +26,7 @@ This fork retains the exact UI/UX, features, and API compatibility of `thedjchi/
 
 Download the latest signed release APK from [GitHub Releases](https://github.com/zuher5/Shizuku/releases).
 
-- **Current Release:** `shizuku-v13.7.2-Zuher5.apk`
+- **Current Release:** `shizuku-v13.7.3-Zuher5.apk`
 - Signed permanently with a dedicated release keystore for seamless updates.
 
 ---
