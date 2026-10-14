@@ -1,5 +1,7 @@
 package moe.shizuku.manager.service
 
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import moe.shizuku.manager.ShizukuSettings
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -250,5 +252,110 @@ class WatchdogDecisionsTest {
     fun testCancelScheduledRetrySafeWhenNoJob() {
         // Calling cancelScheduledRetry when no job is active should not throw
         WatchdogManager.cancelScheduledRetry()
+    }
+
+    @Test
+    fun testHungBinderTaskLimitPreventsUnboundedExecution() {
+        try {
+            // Simulate that 2 tasks are currently hung in transaction
+            WatchdogManager.activeHealthCheckCount.set(2)
+            val result = WatchdogManager.checkHealth()
+            assertFalse(result.healthy)
+            assertEquals(WatchdogManager.HealthStatus.ZOMBIE, result.status)
+            assertTrue(result.reason.contains("health check task limit reached"))
+            // Active count must not have grown
+            assertEquals(2, WatchdogManager.activeHealthCheckCount.get())
+        } finally {
+            WatchdogManager.activeHealthCheckCount.set(0)
+            WatchdogManager.resetHealthCheckState()
+        }
+    }
+
+    @Test
+    fun testHungProbeTimesOutAndCapsTaskCount() {
+        val latch = CountDownLatch(1)
+        WatchdogManager.healthProbe = {
+            latch.await(5, TimeUnit.SECONDS)
+            WatchdogManager.HealthResult(
+                status = WatchdogManager.HealthStatus.HEALTHY,
+                reason = "delayed probe",
+                healthy = true,
+                binderAlive = true
+            )
+        }
+        try {
+            // First call will timeout after 3s and return ZOMBIE
+            val result = WatchdogManager.checkHealth()
+            assertFalse(result.healthy)
+            assertEquals(WatchdogManager.HealthStatus.ZOMBIE, result.status)
+            assertTrue(WatchdogManager.activeHealthCheckCount.get() <= 2)
+        } finally {
+            latch.countDown()
+            WatchdogManager.healthProbe = null
+            WatchdogManager.resetHealthCheckState()
+            WatchdogManager.activeHealthCheckCount.set(0)
+        }
+    }
+
+    @Test
+    fun testUserStopCancelsActiveRecoveryAndClearsRestartState() {
+        try {
+            WatchdogManager.setUserStopRequested(false)
+            assertFalse(WatchdogManager.isUserStopRequested())
+
+            // Requesting user stop should cancel any active recovery and retries
+            WatchdogManager.setUserStopRequested(true)
+            assertTrue(WatchdogManager.isUserStopRequested())
+            assertFalse(WatchdogManager.isRestartInProgress())
+            assertEquals(null, WatchdogManager.activeRecoveryJob)
+        } finally {
+            WatchdogManager.setUserStopRequested(false)
+        }
+    }
+
+    @Test
+    fun testConcurrentRecoveryAdmissionAllowsOnlyOne() {
+        val admission1 = WatchdogDecisions.evaluateAdmission(
+            isEnabled = true,
+            isUserStopRequested = false,
+            isStarterActive = false,
+            isExpectingDeathActive = false,
+            launchMode = ShizukuSettings.LaunchMethod.ADB,
+            attempts = 0,
+            now = 100_000L,
+            lastRestartAttemptMs = 0L,
+            isRestartInProgress = false
+        )
+        assertTrue(admission1 is WatchdogManager.AdmissionResult.Admitted)
+
+        val admission2 = WatchdogDecisions.evaluateAdmission(
+            isEnabled = true,
+            isUserStopRequested = false,
+            isStarterActive = false,
+            isExpectingDeathActive = false,
+            launchMode = ShizukuSettings.LaunchMethod.ADB,
+            attempts = 0,
+            now = 100_000L,
+            lastRestartAttemptMs = 0L,
+            isRestartInProgress = true
+        )
+        assertTrue(admission2 is WatchdogManager.AdmissionResult.Skipped)
+        assertEquals("already in progress", (admission2 as WatchdogManager.AdmissionResult.Skipped).reason)
+    }
+
+    @Test
+    fun testRecoveryAttemptExhaustedAboveMax() {
+        val result = WatchdogDecisions.evaluateAdmission(
+            isEnabled = true,
+            isUserStopRequested = false,
+            isStarterActive = false,
+            isExpectingDeathActive = false,
+            launchMode = ShizukuSettings.LaunchMethod.ROOT,
+            attempts = WatchdogDecisions.MAX_RECOVERY_ATTEMPTS + 1,
+            now = 200_000L,
+            lastRestartAttemptMs = 100_000L,
+            isRestartInProgress = false
+        )
+        assertTrue(result is WatchdogManager.AdmissionResult.Exhausted)
     }
 }
