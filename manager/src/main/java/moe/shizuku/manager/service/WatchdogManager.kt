@@ -13,7 +13,9 @@ import androidx.core.app.NotificationCompat
 import com.topjohnwu.superuser.Shell
 import java.util.concurrent.Callable
 import java.util.concurrent.ExecutionException
-import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.SynchronousQueue
+import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicBoolean
@@ -82,10 +84,22 @@ object WatchdogManager {
     @Volatile
     private var scheduledRetryJob: Job? = null
 
+    @Volatile
+    internal var activeRecoveryJob: Job? = null
+
+    private const val MAX_CONCURRENT_HEALTH_TASKS = 2
+    internal val activeHealthCheckCount = AtomicInteger(0)
+
     private val healthCheckInProgress = AtomicBoolean(false)
     private val healthCheckStartTimeMs = AtomicLong(0L)
     private val healthCheckGeneration = AtomicLong(0L)
-    private val healthCheckExecutor = Executors.newCachedThreadPool { runnable ->
+    private val healthCheckExecutor = ThreadPoolExecutor(
+        0,
+        MAX_CONCURRENT_HEALTH_TASKS,
+        60L,
+        TimeUnit.SECONDS,
+        SynchronousQueue()
+    ) { runnable ->
         Thread(runnable, "watchdog-health-check").apply { isDaemon = true }
     }
 
@@ -119,10 +133,14 @@ object WatchdogManager {
         cancelScheduledRetry()
         resetHealthCheckState()
         val context = appContext
-        if (context != null) {
-            clearUserStopRequest(context)
+        if (!isUserStopRequested()) {
+            if (context != null) {
+                clearUserStopRequest(context)
+            } else {
+                clearUserStopRequest()
+            }
         } else {
-            clearUserStopRequest()
+            logi("Binder received while user stop requested; preserving user stop flag")
         }
     }
 
@@ -240,6 +258,7 @@ object WatchdogManager {
         userStopRequested.set(value)
         if (value) {
             cancelScheduledRetry()
+            cancelActiveRecovery()
         }
         ShizukuSettings.getPreferences()?.edit()
             ?.putBoolean(KEY_USER_STOP_REQUESTED, value)
@@ -259,6 +278,14 @@ object WatchdogManager {
         healthCheckGeneration.incrementAndGet()
         healthCheckStartTimeMs.set(0L)
         healthCheckInProgress.set(false)
+    }
+
+    fun cancelActiveRecovery() {
+        synchronized(admissionLock) {
+            activeRecoveryJob?.cancel()
+            activeRecoveryJob = null
+            restartInProgress.set(false)
+        }
     }
 
     private fun scheduleRetry(context: Context, attempts: Int) {
@@ -316,6 +343,16 @@ object WatchdogManager {
             logw("Watchdog: checkHealth() called on main thread!")
         }
 
+        if (activeHealthCheckCount.get() >= MAX_CONCURRENT_HEALTH_TASKS) {
+            val isAlive = try { Shizuku.getBinder()?.isBinderAlive == true } catch (_: Throwable) { false }
+            return HealthResult(
+                status = HealthStatus.ZOMBIE,
+                reason = "health check task limit reached ($MAX_CONCURRENT_HEALTH_TASKS active tasks hung in transaction)",
+                healthy = false,
+                binderAlive = isAlive
+            )
+        }
+
         val now = SystemClock.elapsedRealtime()
         val startTime = healthCheckStartTimeMs.get()
         if (healthCheckInProgress.get()) {
@@ -337,17 +374,31 @@ object WatchdogManager {
 
         val generation = healthCheckGeneration.incrementAndGet()
         healthCheckStartTimeMs.set(SystemClock.elapsedRealtime())
+        activeHealthCheckCount.incrementAndGet()
 
-        val future = healthCheckExecutor.submit(Callable {
-            try {
-                healthProbe?.invoke() ?: performDirectHealthCheck()
-            } finally {
-                if (healthCheckGeneration.get() == generation) {
-                    healthCheckStartTimeMs.set(0L)
-                    healthCheckInProgress.set(false)
+        val future = try {
+            healthCheckExecutor.submit(Callable {
+                try {
+                    healthProbe?.invoke() ?: performDirectHealthCheck()
+                } finally {
+                    activeHealthCheckCount.decrementAndGet().coerceAtLeast(0)
+                    if (healthCheckGeneration.get() == generation) {
+                        healthCheckStartTimeMs.set(0L)
+                        healthCheckInProgress.set(false)
+                    }
                 }
-            }
-        })
+            })
+        } catch (e: RejectedExecutionException) {
+            activeHealthCheckCount.decrementAndGet().coerceAtLeast(0)
+            healthCheckInProgress.set(false)
+            val isAlive = try { Shizuku.getBinder()?.isBinderAlive == true } catch (_: Throwable) { false }
+            return HealthResult(
+                status = HealthStatus.ZOMBIE,
+                reason = "health check executor pool saturated: ${e.message}",
+                healthy = false,
+                binderAlive = isAlive
+            )
+        }
 
         return try {
             future.get(HEALTH_CHECK_TIMEOUT_MS, TimeUnit.MILLISECONDS)
@@ -463,8 +514,13 @@ object WatchdogManager {
         val admitted = admission as AdmissionResult.Admitted
         val attemptNum = admitted.attempts + 1
 
-        watchdogScope.launch {
+        val job = watchdogScope.launch {
             try {
+                if (isUserStopRequested() || !shouldRunService()) {
+                    logi("Watchdog: recovery aborted before start (user stop or disabled)")
+                    return@launch
+                }
+
                 logi("Watchdog: recovery started (mode=${admitted.mode}, attempt=$attemptNum/$MAX_RECOVERY_ATTEMPTS, delay=${admitted.delayMs}ms)")
 
                 when (admitted.mode) {
@@ -474,6 +530,11 @@ object WatchdogManager {
                 }
 
                 val binderReceived = ShizukuStateMachine.awaitRunning(15_000L)
+                if (isUserStopRequested() || !shouldRunService()) {
+                    logi("Watchdog: recovery aborted after awaitRunning (user stop or disabled)")
+                    return@launch
+                }
+
                 if (binderReceived) {
                     val health = checkHealth()
                     if (health.healthy) {
@@ -490,6 +551,11 @@ object WatchdogManager {
                     logw("Watchdog: recovery failed (timeout waiting for binder)")
                 }
 
+                if (isUserStopRequested() || !shouldRunService()) {
+                    logi("Watchdog: recovery stopped (user stop or disabled)")
+                    return@launch
+                }
+
                 val newAttempts = recoveryAttempts.incrementAndGet()
                 logw("Watchdog: recovery failed (attempt $newAttempts/$MAX_RECOVERY_ATTEMPTS)")
                 if (newAttempts >= MAX_RECOVERY_ATTEMPTS) {
@@ -502,17 +568,28 @@ object WatchdogManager {
                 logd("Watchdog: recovery cancelled")
                 throw e
             } catch (t: Throwable) {
-                val newAttempts = recoveryAttempts.incrementAndGet()
-                logw("Watchdog: recovery failed with exception (attempt $newAttempts/$MAX_RECOVERY_ATTEMPTS): ${t.message}")
-                if (newAttempts >= MAX_RECOVERY_ATTEMPTS) {
-                    logw("Watchdog: maximum recovery attempts reached")
-                    cancelScheduledRetry()
-                } else {
-                    scheduleRetry(app, newAttempts)
+                if (!isUserStopRequested() && shouldRunService()) {
+                    val newAttempts = recoveryAttempts.incrementAndGet()
+                    logw("Watchdog: recovery failed with exception (attempt $newAttempts/$MAX_RECOVERY_ATTEMPTS): ${t.message}")
+                    if (newAttempts >= MAX_RECOVERY_ATTEMPTS) {
+                        logw("Watchdog: maximum recovery attempts reached")
+                        cancelScheduledRetry()
+                    } else {
+                        scheduleRetry(app, newAttempts)
+                    }
                 }
             } finally {
+                synchronized(admissionLock) {
+                    if (activeRecoveryJob == coroutineContext[Job]) {
+                        activeRecoveryJob = null
+                    }
+                }
                 restartInProgress.set(false)
             }
+        }
+
+        synchronized(admissionLock) {
+            activeRecoveryJob = job
         }
     }
 
