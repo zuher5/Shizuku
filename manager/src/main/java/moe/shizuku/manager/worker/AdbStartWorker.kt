@@ -116,10 +116,21 @@ class AdbStartWorker(context: Context, params: WorkerParameters) : CoroutineWork
                                 applicationContext.registerReceiver(receiver, filter)
                             } catch (e: Exception) {
                                 logw("Failed to register unlockReceiver: ${e.message}")
+                                unlockReceiver = null
+                                close(IllegalStateException("Failed to register unlockReceiver", e))
+                                return
                             }
                         }
-                    } else awaitingAuth = true
-                    timeoutJob?.cancel()
+
+                        timeoutJob?.cancel()
+                        timeoutJob = launch {
+                            delay(120_000L)
+                            close(TimeoutException("Timed out waiting for device unlock"))
+                        }
+                    } else {
+                        awaitingAuth = true
+                        timeoutJob?.cancel()
+                    }
                     adbMdns.stop()
                 }
 
