@@ -53,8 +53,8 @@
 - [x] Handle `CancellationException` separately; do not swallow coroutine cancellation as a generic failure.
 
 **Tests**
-- [ ] Two simultaneous crash/health events start at most one recovery.
-- [ ] Cooldown prevents rapid duplicate attempts.
+- [x] Two simultaneous crash/health events start at most one recovery.
+- [x] Cooldown prevents rapid duplicate attempts.
 - [ ] An exception cannot leave the restart lock stuck.
 
 ### 1.3 Fix retry accounting and backoff
@@ -70,8 +70,8 @@
 - [ ] Timeout increments attempt count.
 - [ ] Exceptions increment attempt count.
 - [ ] Healthy recovery resets the count.
-- [ ] Maximum attempts stops further recovery.
-- [ ] Backoff follows the documented sequence.
+- [x] Maximum attempts stops further recovery.
+- [x] Backoff follows the documented sequence.
 
 ### 1.4 Preserve expected-death and user-stop semantics
 
@@ -82,7 +82,7 @@
 - [x] Verify disabling watchdog stops monitoring and prevents new recovery attempts.
 
 **Tests**
-- [ ] User stop does not auto-restart the server.
+- [x] User stop does not auto-restart the server.
 - [ ] Intentional restart does not create false crash recovery.
 - [ ] Stale expected-death state eventually stops suppressing real failures.
 
@@ -99,10 +99,10 @@
 - [x] Ensure failed health checks cannot trigger overlapping recovery attempts.
 
 **Tests**
-- [ ] Missing Binder is classified as dead.
+- [x] Missing Binder is classified as dead.
 - [ ] Binder ping failure is classified correctly.
-- [ ] Remote transaction failure is classified as unhealthy.
-- [ ] A hung transaction does not freeze the main thread or create unlimited concurrent checks.
+- [x] Remote transaction failure is classified as unhealthy.
+- [x] A hung transaction does not freeze the main thread or create unlimited concurrent checks.
 - [ ] Recovery is not marked successful until the health check passes.
 
 ## Phase 3 — Make ADB worker scheduling race-safe
