@@ -145,11 +145,38 @@ jobs:
           name: ${{ needs.build.outputs.artifactName }}
           path: files
 
-      - name: Create Draft Release
+      - name: Create or Update Release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_VERSION: ${{ needs.build.outputs.versionName }}
         run: |
-          FLAGS="--draft"
-          [ "${{ inputs.prerelease }}" = "true" ] && FLAGS="$FLAGS --prerelease"
-          gh release create "$RELEASE_VERSION" files/*.apk $FLAGS
+          set -euo pipefail
+
+          # A release for this tag can already exist when a version is
+          # re-released, and a leftover draft may be left over from an earlier
+          # run. Both are handled here so a rebuild replaces the artifact
+          # instead of creating a duplicate release.
+          DRAFT_ID=$(gh api "repos/$GITHUB_REPOSITORY/releases" \
+            --jq "[.[] | select(.tag_name == \"$RELEASE_VERSION\" and .draft == true) | .id] | first // empty")
+          PUBLISHED_ID=$(gh api "repos/$GITHUB_REPOSITORY/releases" \
+            --jq "[.[] | select(.tag_name == \"$RELEASE_VERSION\" and .draft == false) | .id] | first // empty")
+
+          if [ -n "$DRAFT_ID" ]; then
+            echo "Deleting leftover draft release $DRAFT_ID"
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/$DRAFT_ID"
+          fi
+
+          if [ -n "$PUBLISHED_ID" ]; then
+            echo "Updating existing release $PUBLISHED_ID"
+            gh release upload "$RELEASE_VERSION" files/*.apk --clobber
+            if [ "${{ inputs.prerelease }}" = "true" ]; then
+              gh release edit "$RELEASE_VERSION" --prerelease
+            else
+              gh release edit "$RELEASE_VERSION" --prerelease=false --draft=false
+            fi
+          else
+            echo "Creating release $RELEASE_VERSION"
+            FLAGS=""
+            [ "${{ inputs.prerelease }}" = "true" ] && FLAGS="$FLAGS --prerelease"
+            gh release create "$RELEASE_VERSION" files/*.apk $FLAGS --generate-notes
+          fi
