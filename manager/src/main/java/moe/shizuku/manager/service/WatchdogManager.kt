@@ -15,6 +15,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import moe.shizuku.manager.ShizukuSettings
 import moe.shizuku.manager.ktx.logd
@@ -62,6 +63,7 @@ object WatchdogManager {
 
     private val initialized = AtomicBoolean(false)
     private val restartInProgress = AtomicBoolean(false)
+    private val recoveryScheduled = AtomicBoolean(false)
     private val userStopRequested = AtomicBoolean(false)
     private val recoveryAttempts = AtomicInteger(0)
     private val expectedDeathDeadlineMillis = AtomicLong(0L)
@@ -239,11 +241,20 @@ object WatchdogManager {
             logi("Watchdog: disabled")
             return
         }
+        // One recovery per death: the crash listener and the binder-dead
+        // listener report the same event.
+        if (!recoveryScheduled.compareAndSet(false, true)) {
+            logd("Watchdog: recovery already scheduled")
+            return
+        }
 
         watchdogScope.launch {
             // Give the native supervisor time to respawn the server before the
             // client starts one of its own.
             kotlinx.coroutines.delay(SUPERVISOR_RECOVERY_GRACE_MS)
+            // The crash listener and the binder-dead listener both report the
+            // same death, so only one recovery is scheduled.
+            recoveryScheduled.set(false)
             if (Shizuku.pingBinder() || isStarterActive || isUserStopRequested()) {
                 logi("Watchdog: server already recovered by the supervisor")
                 return@launch
@@ -290,7 +301,7 @@ object WatchdogManager {
                         }
 
                         if (ShizukuStateMachine.awaitRunning(15_000L)) {
-                            val health = checkHealth()
+                            val health = verifyHealth()
                             if (health.healthy) {
                                 logi("Watchdog: recovery succeeded")
                                 recoveryAttempts.set(0)
@@ -318,6 +329,22 @@ object WatchdogManager {
                 }
             }
         }
+    }
+
+    /**
+     * Health check for the recovery verification.
+     *
+     * The periodic check may already be running, which is reported as a zombie.
+     * That is not a verdict on the restarted server, so the check is repeated
+     * once instead of counting a failed attempt.
+     */
+    private suspend fun verifyHealth(): WatchdogPolicy.HealthResult {
+        val first = checkHealth()
+        if (first.healthy || !first.reason.startsWith("health check already in progress")) {
+            return first
+        }
+        delay(1_000L)
+        return checkHealth()
     }
 
     private fun restartRoot() {

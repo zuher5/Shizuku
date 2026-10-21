@@ -64,8 +64,9 @@ class WatchdogService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP_SERVICE) {
             logi("WatchdogService: stop requested by user action")
+            // Only the watchdog is turned off; the server keeps running and a
+            // later manual start is not affected.
             ShizukuSettings.setWatchdog(applicationContext, false)
-            WatchdogManager.setUserStopRequested(true)
             stopSelf()
             return START_NOT_STICKY
         }
@@ -110,8 +111,10 @@ class WatchdogService : Service() {
             return
         }
 
+        // The same path as the binder-dead listener, so the grace period for
+        // the native supervisor applies and only one restart is issued.
         withContext(Dispatchers.IO) {
-            WatchdogManager.attemptRestart(applicationContext)
+            WatchdogManager.onServiceDied(applicationContext)
         }
     }
 
