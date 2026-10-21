@@ -157,7 +157,7 @@ class WatchdogService : Service() {
         }
     }
 
-    private suspend fun handleUnhealthy(result: WatchdogManager.HealthResult) {
+    private suspend fun handleUnhealthy(result: WatchdogPolicy.HealthResult) {
         if (!WatchdogManager.shouldRunService()) return
         if (WatchdogManager.isExpectingDeathActive()) return
         if (WatchdogManager.isUserStopRequested()) return

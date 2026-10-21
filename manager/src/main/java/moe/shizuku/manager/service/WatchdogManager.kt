@@ -25,6 +25,10 @@ import moe.shizuku.manager.utils.ShizukuStateMachine
 import moe.shizuku.manager.worker.AdbStartWorker
 import rikka.shizuku.Shizuku
 
+typealias AdmissionResult = WatchdogPolicy.AdmissionResult
+typealias HealthResult = WatchdogPolicy.HealthResult
+typealias HealthStatus = WatchdogPolicy.HealthStatus
+
 /**
  * Owns the watchdog policy: when a restart is allowed, how long to wait
  * between attempts and how many attempts are left.
@@ -39,13 +43,10 @@ object WatchdogManager {
     private const val EXPECTED_DEATH_WINDOW_MS = 30_000L
 
     /** Minimum delay between two restart attempts. */
-    private const val MIN_RESTART_INTERVAL_MS = 15_000L
+    private const val MIN_RESTART_INTERVAL_MS = WatchdogPolicy.MIN_RESTART_INTERVAL_MS
 
     /** Maximum number of consecutive restart attempts. */
-    const val MAX_RECOVERY_ATTEMPTS = 5
-
-    /** Backoff schedule, indexed by the number of failed attempts. */
-    private val BACKOFF_DELAYS_MS = longArrayOf(15_000L, 30_000L, 60_000L, 120_000L)
+    const val MAX_RECOVERY_ATTEMPTS = WatchdogPolicy.MAX_RECOVERY_ATTEMPTS
 
     private const val KEY_USER_STOP_REQUESTED = "watchdog_user_stop_requested"
 
@@ -58,27 +59,6 @@ object WatchdogManager {
      * the two never race to start a second server.
      */
     private const val SUPERVISOR_RECOVERY_GRACE_MS = 8_000L
-
-    enum class HealthStatus {
-        HEALTHY,
-        ZOMBIE,
-        DEAD
-    }
-
-    data class HealthResult(
-        val status: HealthStatus,
-        val reason: String
-    ) {
-        val healthy: Boolean get() = status == HealthStatus.HEALTHY
-        val binderAlive: Boolean get() = status != HealthStatus.DEAD
-    }
-
-    sealed class AdmissionResult {
-        data class Admitted(val mode: Int, val attempts: Int, val delayMs: Long) : AdmissionResult()
-        data class Cooldown(val remainingMs: Long) : AdmissionResult()
-        data class Skipped(val reason: String) : AdmissionResult()
-        object Exhausted : AdmissionResult()
-    }
 
     @Volatile
     var isStarterActive: Boolean = false
@@ -199,11 +179,7 @@ object WatchdogManager {
 
     fun getRecoveryAttempts(): Int = recoveryAttempts.get()
 
-    fun getRequiredCooldown(attempts: Int): Long {
-        if (attempts <= 0) return MIN_RESTART_INTERVAL_MS
-        val index = (attempts - 1).coerceIn(0, BACKOFF_DELAYS_MS.lastIndex)
-        return BACKOFF_DELAYS_MS[index]
-    }
+    fun getRequiredCooldown(attempts: Int): Long = WatchdogPolicy.getRequiredCooldown(attempts)
 
     /**
      * Decides whether a restart may start right now.
@@ -212,37 +188,25 @@ object WatchdogManager {
      */
     fun tryAdmitRestart(): AdmissionResult {
         synchronized(admissionLock) {
-            if (!isEnabled()) {
-                return AdmissionResult.Skipped("watchdog disabled")
+            val result = WatchdogPolicy.evaluateAdmission(
+                isEnabled = isEnabled(),
+                isUserStopRequested = isUserStopRequested(),
+                isStarterActive = isStarterActive,
+                isExpectingDeathActive = isExpectingDeathActive(),
+                launchMode = ShizukuSettings.getLastLaunchMode(),
+                attempts = recoveryAttempts.get(),
+                now = SystemClock.elapsedRealtime(),
+                lastRestartAttemptMs = lastRestartAttemptMs.get(),
+                isRestartInProgress = restartInProgress.get(),
+                unknownLaunchMode = ShizukuSettings.LaunchMethod.UNKNOWN
+            )
+            if (result is AdmissionResult.Admitted) {
+                if (!restartInProgress.compareAndSet(false, true)) {
+                    return AdmissionResult.Skipped("already in progress")
+                }
+                lastRestartAttemptMs.set(SystemClock.elapsedRealtime())
             }
-            if (isUserStopRequested()) {
-                return AdmissionResult.Skipped("user stop requested")
-            }
-            if (isStarterActive) {
-                return AdmissionResult.Skipped("starter active")
-            }
-            if (isExpectingDeathActive()) {
-                return AdmissionResult.Skipped("death expected")
-            }
-            val mode = ShizukuSettings.getLastLaunchMode()
-            if (mode == ShizukuSettings.LaunchMethod.UNKNOWN) {
-                return AdmissionResult.Skipped("UNKNOWN launch mode")
-            }
-            val attempts = recoveryAttempts.get()
-            if (attempts >= MAX_RECOVERY_ATTEMPTS) {
-                return AdmissionResult.Exhausted
-            }
-            val now = SystemClock.elapsedRealtime()
-            val requiredCooldown = getRequiredCooldown(attempts)
-            val elapsed = now - lastRestartAttemptMs.get()
-            if (lastRestartAttemptMs.get() > 0L && elapsed < requiredCooldown) {
-                return AdmissionResult.Cooldown(requiredCooldown - elapsed)
-            }
-            if (!restartInProgress.compareAndSet(false, true)) {
-                return AdmissionResult.Skipped("already in progress")
-            }
-            lastRestartAttemptMs.set(now)
-            return AdmissionResult.Admitted(mode, attempts, requiredCooldown)
+            return result
         }
     }
 
