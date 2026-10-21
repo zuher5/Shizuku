@@ -134,8 +134,10 @@ jobs:
           VERSION="${{ needs.build.outputs.versionName }}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag "$VERSION" -m "Release version $VERSION"
-          git push origin "$VERSION"
+          # Re-releasing a version moves the tag to the current commit instead
+          # of failing, so a rebuilt release replaces the previous artifact.
+          git tag -fa "$VERSION" -m "Release version $VERSION"
+          git push -f origin "$VERSION"
 
       - name: Download Artifact
         uses: actions/download-artifact@v7
