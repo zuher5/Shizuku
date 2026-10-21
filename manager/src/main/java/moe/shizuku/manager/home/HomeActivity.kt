@@ -32,6 +32,7 @@ import moe.shizuku.manager.utils.AppIconCache
 import moe.shizuku.manager.utils.CustomTabsHelper
 import moe.shizuku.manager.utils.EnvironmentUtils
 import moe.shizuku.manager.utils.SettingsHelper
+import moe.shizuku.manager.service.WatchdogManager
 import moe.shizuku.manager.utils.ShizukuStateMachine
 import moe.shizuku.manager.utils.UpdateHelper
 import rikka.core.content.asActivity
@@ -237,7 +238,9 @@ abstract class HomeActivity : AppBarActivity() {
                     MaterialAlertDialogBuilder(this)
                         .setMessage(R.string.dialog_stop_message)
                         .setPositiveButton(android.R.string.ok) { _: DialogInterface?, _: Int ->
-                            ShizukuStateMachine.set(ShizukuStateMachine.State.STOPPING)
+                            // A manual stop must not be undone by the watchdog.
+                            WatchdogManager.setUserStopRequested(true)
+                            ShizukuStateMachine.onStopRequested()
                             runCatching { Shizuku.exit() }
                         }
                         .setNegativeButton(android.R.string.cancel, null)

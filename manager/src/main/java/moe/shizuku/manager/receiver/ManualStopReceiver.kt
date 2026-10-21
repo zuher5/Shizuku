@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import moe.shizuku.manager.BuildConfig
 import moe.shizuku.manager.R
+import moe.shizuku.manager.service.WatchdogManager
 import moe.shizuku.manager.utils.ShizukuStateMachine
 import rikka.shizuku.Shizuku
 
@@ -14,7 +15,9 @@ class ManualStopReceiver : AuthenticatedReceiver() {
         if (intent.action != "${applicationId}.STOP") return
         if (!ShizukuStateMachine.isRunning()) return
 
-        ShizukuStateMachine.set(ShizukuStateMachine.State.STOPPING)
+        // A manual stop must not be undone by the watchdog.
+        WatchdogManager.setUserStopRequested(true)
+        ShizukuStateMachine.onStopRequested()
         runCatching { Shizuku.exit() }
     }
 }

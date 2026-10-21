@@ -45,7 +45,7 @@ object AdbStarter {
         listener: ((ByteArray) -> Unit)? = null,
         log: ((String) -> Unit)? = null,
     ) {
-        ShizukuStateMachine.set(ShizukuStateMachine.State.STARTING)
+        ShizukuStateMachine.onStartRequested()
         log?.invoke("Starting with wireless adb...\n")
 
         val key = withContext(Dispatchers.IO) {
@@ -152,7 +152,7 @@ object AdbStarter {
             val adbEnabled = Settings.Global.getInt(cr, Settings.Global.ADB_ENABLED, 0)
             if (adbEnabled == 0) throw IllegalStateException("ADB is not enabled")
 
-            ShizukuStateMachine.set(ShizukuStateMachine.State.STOPPING)
+            ShizukuStateMachine.onStopRequested()
             val key = AdbKey(PreferenceAdbKeyStore(ShizukuSettings.getPreferences()), "shizuku")
             withContext(Dispatchers.IO) {
                 AdbClient("127.0.0.1", port, key).use { client ->

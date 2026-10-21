@@ -27,6 +27,7 @@ import moe.shizuku.manager.R
 import moe.shizuku.manager.adb.AdbKeyException
 import moe.shizuku.manager.adb.AdbStarter
 import moe.shizuku.manager.app.AppBarActivity
+import moe.shizuku.manager.service.WatchdogManager
 import moe.shizuku.manager.utils.ShizukuStateMachine
 import moe.shizuku.manager.databinding.StarterActivityBinding
 import rikka.lifecycle.Resource
@@ -123,6 +124,9 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
         if (started) return
         started = true
 
+        // An explicit manual start overrides a previous user stop.
+        WatchdogManager.clearUserStopRequest(appContext)
+
         viewModelScope.launch(handler) {
             if (root) startRoot()
             else AdbStarter.startAdb(appContext, port, { log(it) })
@@ -152,7 +156,7 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
 
-            ShizukuStateMachine.set(ShizukuStateMachine.State.STARTING)
+            ShizukuStateMachine.onStartRequested()
             suspendCancellableCoroutine { cont ->
                 Shell.cmd(Starter.internalCommand)
                     .to(object : CallbackList<String?>() {

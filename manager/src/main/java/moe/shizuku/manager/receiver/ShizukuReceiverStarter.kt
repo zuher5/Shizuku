@@ -130,7 +130,7 @@ object ShizukuReceiverStarter {
         }
 
         try {
-            ShizukuStateMachine.set(ShizukuStateMachine.State.STARTING)
+            ShizukuStateMachine.onStartRequested()
             Shell.cmd(Starter.internalCommand).exec()
         } catch (e: Exception) {
             Log.e(AppConstants.TAG, "Failed to start Shizuku with root", e)
