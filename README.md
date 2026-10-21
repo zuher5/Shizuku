@@ -24,6 +24,31 @@ An Android app that allows other apps to use system-level APIs that require ADB/
 
 This is a **FORK** of Shizuku. If you are looking for the original version, please visit the [RikkaApps/Shizuku](https://github.com/RikkaApps/Shizuku) repository.
 
+## 🛠️ Zuher5 reliability fork
+
+This fork keeps the thedjchi UI, package identity and API surface unchanged, and
+focuses on the reliability of the server lifecycle:
+
+- **Native supervisor** (`starter.cpp`): a detached supervisor keeps
+  `shizuku_server` alive after a crash (respawn after 5 s, at most 5 consecutive
+  restarts, counter reset after 60 s of stable uptime) and makes sure two
+  supervisors never race for the same server.
+- **Bounded watchdog**: the health check runs in a dedicated thread with a hard
+  3 s timeout, so a hung Binder transaction can neither block the caller nor
+  pile up threads. A zombie server is stopped cleanly before a restart.
+- **Serialized recovery**: restarts are admitted under a single lock, spaced by
+  an exponential backoff (15 s → 30 s → 60 s → 120 s, at most 5 attempts) and
+  are only counted as successful after a health check passes.
+- **User stop and expected death**: a manual stop is remembered across restarts
+  and is never undone by the watchdog, and an intentional restart is not
+  reported as a crash.
+- **Hardened ADB start**: the worker waits for the lock screen with a bounded
+  timeout, uses the live ADB port when one is available, never fails
+  terminally (it retries with backoff instead of stranding the device) and
+  provides a foreground notification on every Android version.
+
+See [TESTING.md](TESTING.md) for the device test scenarios.
+
 ## ⬇️ Download
 
 Get the latest [stable](https://github.com/thedjchi/Shizuku/releases/latest) or [beta](https://github.com/thedjchi/Shizuku/releases) version.
