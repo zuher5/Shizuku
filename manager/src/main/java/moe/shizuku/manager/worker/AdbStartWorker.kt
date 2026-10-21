@@ -13,6 +13,7 @@ import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.work.BackoffPolicy
+import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingWorkPolicy
 import androidx.work.ForegroundInfo
@@ -22,7 +23,6 @@ import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
-import androidx.work.workDataOf
 import java.io.EOFException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
@@ -250,7 +250,7 @@ class AdbStartWorker(context: Context, params: WorkerParameters) : CoroutineWork
      * may have been unlocked in between and USER_PRESENT would be missed.
      */
     private suspend fun awaitUserPresent(keyguardManager: KeyguardManager): Boolean =
-        suspendCancellableCoroutine { cont ->
+        suspendCancellableCoroutine<Boolean> { cont ->
             val filter = IntentFilter(Intent.ACTION_USER_PRESENT)
             val unlockReceiver = object : BroadcastReceiver() {
                 override fun onReceive(context: Context, intent: Intent) {
