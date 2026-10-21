@@ -9,6 +9,7 @@ import com.topjohnwu.superuser.Shell
 import moe.shizuku.manager.ktx.logd
 import moe.shizuku.manager.service.WatchdogService
 import moe.shizuku.manager.utils.ShizukuStateMachine
+import moe.shizuku.manager.worker.AdbNetworkObserver
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 import rikka.core.util.BuildUtils.atLeast30
 import rikka.material.app.LocaleDelegate
@@ -51,6 +52,10 @@ class ShizukuApplication : Application() {
         application = this
         appContext = applicationContext
         init(this)
+
+        // Safety net for the "booted on cellular" case: restarts the worker
+        // when an unmetered network becomes available.
+        AdbNetworkObserver.register(this)
     }
 
 }

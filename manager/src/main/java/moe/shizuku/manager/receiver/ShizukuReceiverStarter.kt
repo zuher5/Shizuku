@@ -28,13 +28,24 @@ import moe.shizuku.manager.worker.AdbStartWorker
 object ShizukuReceiverStarter {
 
     const val NOTIFICATION_ID = 1447
-    private const val CHANNEL_ID = "AdbStartWorker"
+    const val CHANNEL_ID = "AdbStartWorker"
 
     enum class WorkerState {
         AWAITING_WIFI,
         AWAITING_RETRY,
         RUNNING,
         STOPPED
+    }
+
+    /** Creates the notification channel, so callers that only need the channel do not build a notification. */
+    fun ensureChannel(context: Context) {
+        val channel = NotificationChannel(
+            CHANNEL_ID,
+            context.getString(R.string.wadb_notification_title),
+            NotificationManager.IMPORTANCE_LOW
+        )
+        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        nm.createNotificationChannel(channel)
     }
 
     fun start(context: Context, forceStart: Boolean = false) {
@@ -56,13 +67,7 @@ object ShizukuReceiverStarter {
     }
 
     fun buildNotification(context: Context, msg: String? = null): Notification {
-        val channel = NotificationChannel(
-            CHANNEL_ID,
-            context.getString(R.string.wadb_notification_title),
-            NotificationManager.IMPORTANCE_LOW
-        )
-        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        nm.createNotificationChannel(channel)
+        ensureChannel(context)
 
         val cancelIntent = Intent(context, NotifCancelReceiver::class.java)
         val cancelPendingIntent = PendingIntent.getBroadcast(
@@ -101,7 +106,12 @@ object ShizukuReceiverStarter {
     }
 
     fun updateNotification(context: Context, state: WorkerState) {
-        if (state == WorkerState.STOPPED) return
+        if (state == WorkerState.STOPPED) {
+            // The server is up: clear the "starting" banner.
+            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.cancel(NOTIFICATION_ID)
+            return
+        }
         val msgId = when (state) {
             WorkerState.AWAITING_WIFI -> R.string.wadb_notification_wifi_required
             WorkerState.AWAITING_RETRY -> R.string.wadb_notification_retry
