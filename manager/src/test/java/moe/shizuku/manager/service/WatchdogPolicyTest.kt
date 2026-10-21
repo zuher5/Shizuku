@@ -95,7 +95,9 @@ class WatchdogPolicyTest {
 
     @Test
     fun restartInProgressBlocksASecondRestart() {
-        val result = evaluate(lastRestartAttemptMs = 100_000L, isRestartInProgress = true)
+        // The cooldown has already elapsed, so the in-progress lock is the
+        // only thing that can veto the restart.
+        val result = evaluate(now = 200_000L, lastRestartAttemptMs = 100_000L, isRestartInProgress = true)
         assertTrue(result is WatchdogPolicy.AdmissionResult.Skipped)
         assertEquals("already in progress", (result as WatchdogPolicy.AdmissionResult.Skipped).reason)
     }
