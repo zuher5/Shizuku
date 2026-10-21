@@ -40,6 +40,7 @@ public class ShizukuSettings {
         public static final String KEY_HELP = "help";
         public static final String KEY_REPORT_BUG = "report_bug";
         public static final String KEY_LEGACY_PAIRING = "legacy_pairing";
+        public static final String KEY_LAST_ADB_PORT = "last_adb_port";
         public static final String KEY_CATEGORY_ADVANCED = "category_advanced";
     }
 
@@ -190,6 +191,23 @@ public class ShizukuSettings {
             getPreferences().edit().remove(Keys.KEY_TCP_PORT).apply();
         }
         
+    }
+
+    /**
+     * The ADB port that was live the last time Shizuku was started through it.
+     * Wireless debugging uses a random port per boot, so remembering it lets
+     * the starter reuse a still-open port instead of rediscovering it.
+     */
+    public static int getLastAdbPort() {
+        return getPreferences().getInt(Keys.KEY_LAST_ADB_PORT, -1);
+    }
+
+    public static void setLastAdbPort(int port) {
+        if (port > 0) {
+            getPreferences().edit().putInt(Keys.KEY_LAST_ADB_PORT, port).apply();
+        } else {
+            getPreferences().edit().remove(Keys.KEY_LAST_ADB_PORT).apply();
+        }
     }
 
     public static boolean getLegacyPairing() {

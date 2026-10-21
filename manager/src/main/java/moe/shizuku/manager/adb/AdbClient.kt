@@ -14,7 +14,6 @@ import moe.shizuku.manager.adb.AdbProtocol.A_STLS
 import moe.shizuku.manager.adb.AdbProtocol.A_STLS_VERSION
 import moe.shizuku.manager.adb.AdbProtocol.A_VERSION
 import moe.shizuku.manager.adb.AdbProtocol.A_WRTE
-import moe.shizuku.manager.ktx.logd
 import rikka.core.util.BuildUtils
 import java.io.Closeable
 import java.io.DataInputStream
@@ -26,6 +25,9 @@ import java.net.InetSocketAddress
 import javax.net.ssl.SSLSocket
 
 private const val TAG = "AdbClient"
+
+private const val CONNECT_TIMEOUT_MS = 5_000
+private const val SOCKET_TIMEOUT_MS = 15_000
 
 class AdbClient(private val host: String, private val port: Int, private val key: AdbKey) : Closeable {
 
@@ -43,9 +45,11 @@ class AdbClient(private val host: String, private val port: Int, private val key
     private val outputStream get() = if (useTls) tlsOutputStream else plainOutputStream
 
     fun connect() {
-        val socket = Socket()
-        val address = InetSocketAddress(host, port)
-        socket.connect(address, 5000)
+        socket = Socket()
+        // A read that never completes would hang the caller (and the worker
+        // that owns it) forever, so every socket carries a read timeout.
+        socket.soTimeout = SOCKET_TIMEOUT_MS
+        socket.connect(InetSocketAddress(host, port), CONNECT_TIMEOUT_MS)
 
         socket.tcpNoDelay = true
         plainInputStream = DataInputStream(socket.getInputStream())
@@ -62,6 +66,7 @@ class AdbClient(private val host: String, private val port: Int, private val key
 
             val sslContext = key.sslContext
             tlsSocket = sslContext.socketFactory.createSocket(socket, host, port, true) as SSLSocket
+            tlsSocket.soTimeout = SOCKET_TIMEOUT_MS
             tlsSocket.startHandshake()
             Log.d(TAG, "Handshake succeeded.")
 
@@ -71,7 +76,10 @@ class AdbClient(private val host: String, private val port: Int, private val key
 
             message = read()
         } else if (message.command == A_AUTH) {
-            if (message.command != A_AUTH && message.arg0 != ADB_AUTH_TOKEN) error("not A_AUTH ADB_AUTH_TOKEN")
+            if (message.arg0 != ADB_AUTH_TOKEN &&
+                message.arg0 != ADB_AUTH_SIGNATURE &&
+                message.arg0 != ADB_AUTH_RSAPUBLICKEY
+            ) error("not A_AUTH ADB_AUTH_TOKEN")
             write(A_AUTH, ADB_AUTH_SIGNATURE, 0, key.sign(message.data))
 
             message = read()
@@ -87,7 +95,6 @@ class AdbClient(private val host: String, private val port: Int, private val key
     fun command(cmd: String, listener: ((ByteArray) -> Unit)? = null) {
         val localId = 1
         write(A_OPEN, localId, 0, cmd)
-
         var message = read()
         when (message.command) {
             A_OKAY -> {
@@ -117,6 +124,8 @@ class AdbClient(private val host: String, private val port: Int, private val key
         }
     }
 
+    fun shellCommand(command: String, listener: ((ByteArray) -> Unit)?) = command("shell:$command", listener)
+
     private fun write(command: Int, arg0: Int, arg1: Int, data: ByteArray? = null) = write(AdbMessage(command, arg0, arg1, data))
 
     private fun write(command: Int, arg0: Int, arg1: Int, data: String) = write(AdbMessage(command, arg0, arg1, data))
@@ -130,7 +139,7 @@ class AdbClient(private val host: String, private val port: Int, private val key
     private fun read(): AdbMessage {
         val buffer = ByteBuffer.allocate(AdbMessage.HEADER_LENGTH).order(ByteOrder.LITTLE_ENDIAN)
 
-        inputStream.readFully(buffer.array(), 0, 24)
+        inputStream.readFully(buffer.array(), 0, AdbMessage.HEADER_LENGTH)
 
         val command = buffer.int
         val arg0 = buffer.int
