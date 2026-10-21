@@ -256,7 +256,7 @@ class AdbStartWorker(context: Context, params: WorkerParameters) : CoroutineWork
                 override fun onReceive(context: Context, intent: Intent) {
                     if (intent.action == Intent.ACTION_USER_PRESENT) {
                         runCatching { applicationContext.unregisterReceiver(this) }
-                        if (cont.isActive) cont.resumeWith(Result.success(true))
+                        if (cont.isActive) cont.resumeWith(kotlin.Result.success(true))
                     }
                 }
             }
@@ -269,7 +269,7 @@ class AdbStartWorker(context: Context, params: WorkerParameters) : CoroutineWork
 
             if (!keyguardManager.isKeyguardLocked) {
                 runCatching { applicationContext.unregisterReceiver(unlockReceiver) }
-                if (cont.isActive) cont.resumeWith(Result.success(true))
+                if (cont.isActive) cont.resumeWith(kotlin.Result.success(true))
             }
             cont.invokeOnCancellation {
                 runCatching { applicationContext.unregisterReceiver(unlockReceiver) }
