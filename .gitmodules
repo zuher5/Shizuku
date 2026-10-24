@@ -2,3 +2,6 @@
 	path = api
 	url = https://github.com/thedjchi/Shizuku-API
 	branch = master
+[submodule "shevery"]
+	path = shevery
+	url = https://github.com/HmnDev-Tech/shevery.git
