@@ -44,6 +44,7 @@ import moe.shizuku.manager.receiver.ShizukuReceiverStarter
 import moe.shizuku.manager.receiver.ShizukuReceiverStarter.WorkerState
 import moe.shizuku.manager.receiver.ShizukuReceiverStarter.updateNotification
 import moe.shizuku.manager.settings.BugReportDialogActivity
+import moe.shizuku.manager.service.WatchdogManager
 import moe.shizuku.manager.starter.Starter
 import moe.shizuku.manager.utils.EnvironmentUtils
 import moe.shizuku.manager.utils.ShizukuStateMachine
@@ -141,6 +142,10 @@ class AdbStartWorker(context: Context, params: WorkerParameters) : CoroutineWork
 
     override suspend fun doWork(): Result {
         try {
+            if (WatchdogManager.isUserStopRequested()) {
+                updateNotification(applicationContext, WorkerState.STOPPED)
+                return Result.success()
+            }
             updateNotification(applicationContext, WorkerState.RUNNING)
 
             // Gate every start path behind the lock screen. Android tears down
@@ -191,6 +196,13 @@ class AdbStartWorker(context: Context, params: WorkerParameters) : CoroutineWork
                 if (liveTcpPort > 0) liveTcpPort else discoverPortViaMdns(cr)
             }
 
+            // A user may have stopped the server while discovery was in
+            // progress; do not let this worker undo that explicit request.
+            if (WatchdogManager.isUserStopRequested()) {
+                updateNotification(applicationContext, WorkerState.STOPPED)
+                return Result.success()
+            }
+
             AdbStarter.startAdb(applicationContext, port)
             try {
                 Starter.waitForBinder()
@@ -205,6 +217,10 @@ class AdbStartWorker(context: Context, params: WorkerParameters) : CoroutineWork
 
             return Result.success()
         } catch (e: CancellationException) {
+            if (WatchdogManager.isUserStopRequested()) {
+                updateNotification(applicationContext, WorkerState.STOPPED)
+                throw e
+            }
             val state = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
                 WorkerState.AWAITING_RETRY
             } else {

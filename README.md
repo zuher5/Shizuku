@@ -4,7 +4,7 @@
 
 An Android app that allows other apps to use system-level APIs that require ADB/root privileges.
 
-**I'm pausing maintenance for the time being, I simply haven't had time to work on this and it was a side project.**
+This fork is maintained by Zuher5 with a focus on backend reliability while preserving the classic Shizuku experience.
 
 [![Stars](https://img.shields.io/github/stars/thedjchi/Shizuku?style=for-the-badge&color=bfb330&labelColor=807820&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHRpdGxlPnN0YXI8L3RpdGxlPjxwYXRoIGQ9Ik0xMiwxNy4yN0wxOC4xOCwyMUwxNi41NCwxMy45N0wyMiw5LjI0TDE0LjgxLDguNjJMMTIsMkw5LjE5LDguNjJMMiw5LjI0TDcuNDUsMTMuOTdMNS44MiwyMUwxMiwxNy4yN1oiIGZpbGw9IndoaXRlIiAvPjwvc3ZnPg==)](https://github.com/thedjchi/Shizuku/stargazers)
 [![Downloads](https://img.shields.io/github/downloads/thedjchi/Shizuku/total?style=for-the-badge&color=bf7830&labelColor=805020&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHRpdGxlPmRvd25sb2FkPC90aXRsZT48cGF0aCBkPSJNNSwyMEgxOVYxOEg1TTE5LDlIMTVWM0g5VjlINUwxMiwxNkwxOSw5WiIgZmlsbD0id2hpdGUiIC8+PC9zdmc+)](https://github.com/thedjchi/Shizuku/releases)
@@ -51,9 +51,9 @@ See [TESTING.md](TESTING.md) for the device test scenarios.
 
 ## ⬇️ Download
 
-Get the latest [stable](https://github.com/thedjchi/Shizuku/releases/latest) or [beta](https://github.com/thedjchi/Shizuku/releases) version.
+Get the latest [stable](https://github.com/zuher5/Shizuku/releases/latest) or [beta](https://github.com/zuher5/Shizuku/releases) version.
 
-All versions are distributed via [GitHub Releases](https://github.com/thedjchi/Shizuku/releases).
+All versions are distributed via [GitHub Releases](https://github.com/zuher5/Shizuku/releases).
 
 ## ✨ Added Features
 

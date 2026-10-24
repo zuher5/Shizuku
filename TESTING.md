@@ -6,7 +6,7 @@ verified on a build server. These scenarios must be run on a real device.
 ## Prerequisites
 - Android 11+ (API 30+) for wireless debugging, or a rooted device.
 - Developer options enabled, wireless debugging paired (for the ADB path).
-- The debug build installed (`shizuku-v13.7.1-Zuher5-debug.apk`).
+- The debug build installed (for example, `shizuku-v13.7.4-Zuher5-debug.apk`).
 
 Logcat filter:
 ```sh
@@ -79,3 +79,12 @@ adb logcat -s WatchdogManager WatchdogService ShizukuStateMachine AdbStartWorker
 **Goal:** the manual retry replaces a pending worker.
 - Trigger a start that cannot succeed (for example wireless debugging not authorized), then tap "attempt now".
 - **Expected:** a new attempt starts immediately instead of the old one being kept.
+
+## 12. Authenticated stop/start while ADB work is pending
+**Goal:** an explicit stop cannot be undone by an in-flight or retrying ADB start, and a later explicit start clears the stop request.
+- Trigger an ADB start that is waiting for Wi-Fi, authorization, or mDNS discovery.
+- Send the existing authenticated `${applicationId}.STOP` broadcast (with the configured `auth` extra).
+- **Expected:** the pending/retrying `adb_start_worker` is cancelled, its progress notification is removed, and no server starts afterward.
+- Send the authenticated `${applicationId}.START` broadcast or tap "attempt now" on the existing start notification.
+- **Expected:** the persisted user-stop flag is cleared and normal ADB startup proceeds.
+- Repeat stop with the server already stopped; **expected:** it remains stopped and no queued worker restarts it.

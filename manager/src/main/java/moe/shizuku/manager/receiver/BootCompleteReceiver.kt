@@ -7,6 +7,7 @@ import android.util.Log
 import moe.shizuku.manager.AppConstants
 import moe.shizuku.manager.ShizukuSettings
 import moe.shizuku.manager.adb.AdbArm
+import moe.shizuku.manager.service.WatchdogManager
 import moe.shizuku.manager.service.WatchdogService
 import moe.shizuku.manager.utils.ShizukuStateMachine
 
@@ -22,6 +23,12 @@ class BootCompleteReceiver : BroadcastReceiver() {
             if (ShizukuSettings.getWatchdog()) WatchdogService.start(context)
             return
         }
+
+        if (!ShizukuSettings.getStartOnBoot(context)) return
+
+        // The enabled boot-start preference is an explicit start request and
+        // overrides a manual stop persisted from the previous session.
+        WatchdogManager.clearUserStopRequest(context.applicationContext)
 
         // Arm adbd before the start attempt, so wireless debugging is already
         // available when the worker looks for it. Both writes are idempotent.

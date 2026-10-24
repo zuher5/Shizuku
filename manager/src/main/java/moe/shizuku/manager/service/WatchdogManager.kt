@@ -2,6 +2,7 @@ package moe.shizuku.manager.service
 
 import android.content.Context
 import android.os.SystemClock
+import androidx.work.WorkManager
 import com.topjohnwu.superuser.Shell
 import java.util.concurrent.Callable
 import java.util.concurrent.ExecutionException
@@ -21,6 +22,7 @@ import moe.shizuku.manager.ShizukuSettings
 import moe.shizuku.manager.ktx.logd
 import moe.shizuku.manager.ktx.logi
 import moe.shizuku.manager.ktx.logw
+import moe.shizuku.manager.receiver.ShizukuReceiverStarter
 import moe.shizuku.manager.starter.Starter
 import moe.shizuku.manager.utils.ShizukuStateMachine
 import moe.shizuku.manager.worker.AdbStartWorker
@@ -83,9 +85,17 @@ object WatchdogManager {
 
     private val binderReceivedListener = Shizuku.OnBinderReceivedListener {
         logi("Watchdog: binder received")
-        expectedDeathDeadlineMillis.set(0L)
-        recoveryAttempts.set(0)
-        clearUserStopRequest()
+        if (isUserStopRequested()) {
+            // A worker can cross its final start boundary as a stop arrives.
+            // Preserve the stop request and tear down that late server instead
+            // of treating its binder as a new user-approved start.
+            expectedDeathDeadlineMillis.set(0L)
+            ShizukuStateMachine.onStopRequested()
+            runCatching { Shizuku.exit() }
+        } else {
+            expectedDeathDeadlineMillis.set(0L)
+            recoveryAttempts.set(0)
+        }
     }
 
     private val binderDeadListener = Shizuku.OnBinderDeadListener {
@@ -460,8 +470,22 @@ object WatchdogManager {
      */
     fun requestStopServer(context: Context? = null, userInitiated: Boolean = true): Throwable? {
         if (userInitiated) {
+            context?.let { init(it) }
             setUserStopRequested(true)
-            context?.let { reconcileService(it) }
+            context?.applicationContext?.let { app ->
+                // Prevent a queued/retrying ADB start from undoing an explicit
+                // stop before the server binder has arrived.
+                WorkManager.getInstance(app).cancelUniqueWork(AdbStartWorker.UNIQUE_WORK_NAME)
+                ShizukuReceiverStarter.updateNotification(
+                    app,
+                    ShizukuReceiverStarter.WorkerState.STOPPED
+                )
+                reconcileService(app)
+            }
+        }
+        if (!ShizukuStateMachine.isRunning() && !Shizuku.pingBinder()) {
+            ShizukuStateMachine.update()
+            return null
         }
         expectDeath()
         ShizukuStateMachine.onStopRequested()

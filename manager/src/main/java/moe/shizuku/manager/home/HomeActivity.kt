@@ -238,10 +238,7 @@ abstract class HomeActivity : AppBarActivity() {
                     MaterialAlertDialogBuilder(this)
                         .setMessage(R.string.dialog_stop_message)
                         .setPositiveButton(android.R.string.ok) { _: DialogInterface?, _: Int ->
-                            // A manual stop must not be undone by the watchdog.
-                            WatchdogManager.setUserStopRequested(true)
-                            ShizukuStateMachine.onStopRequested()
-                            runCatching { Shizuku.exit() }
+                            WatchdogManager.requestStopServer(this, userInitiated = true)
                         }
                         .setNegativeButton(android.R.string.cancel, null)
                         .show()
