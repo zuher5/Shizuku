@@ -46,7 +46,6 @@ import moe.shizuku.manager.receiver.ShizukuReceiverStarter.updateNotification
 import moe.shizuku.manager.settings.BugReportDialogActivity
 import moe.shizuku.manager.service.WatchdogManager
 import moe.shizuku.manager.starter.Starter
-import moe.shizuku.manager.starter.StarterBinderTimeoutException
 import moe.shizuku.manager.utils.EnvironmentUtils
 import moe.shizuku.manager.utils.ShizukuStateMachine
 import rikka.shizuku.Shizuku
@@ -182,20 +181,19 @@ class AdbStartWorker(context: Context, params: WorkerParameters) : CoroutineWork
 
             val liveTcpPort = EnvironmentUtils.getLiveAdbTcpPort()
 
-            val endpoint: Pair<String, Int> = if (EnvironmentUtils.isTelevision()) {
+            val port = if (EnvironmentUtils.isTelevision()) {
                 // TV devices with a configured TCP port use TCP directly;
                 // mDNS discovery is unreliable on LEANBACK.
-                if (tcpPort > 0) AdbStarter.LOOPBACK_HOST to tcpPort
-                else throw SecurityException("TV device requires TCP ADB port to be configured")
+                if (tcpPort > 0) tcpPort else throw SecurityException("TV device requires TCP ADB port to be configured")
             } else if (!EnvironmentUtils.isWifiRequired() && liveTcpPort > 0) {
                 // A configured port that is actually live can be used directly.
-                AdbStarter.LOOPBACK_HOST to liveTcpPort
+                liveTcpPort
             } else {
                 // The mDNS advert can go stale when Wi-Fi drops and reconnects
                 // (the framework never re-publishes _adb-tls-connect_). A live
                 // port is used directly, otherwise discovery runs; a wrong
                 // service connect dies fast, so the fallback is safe.
-                if (liveTcpPort > 0) AdbStarter.LOOPBACK_HOST to liveTcpPort else discoverEndpointViaMdns(cr)
+                if (liveTcpPort > 0) liveTcpPort else discoverPortViaMdns(cr)
             }
 
             // A user may have stopped the server while discovery was in
@@ -205,13 +203,10 @@ class AdbStartWorker(context: Context, params: WorkerParameters) : CoroutineWork
                 return Result.success()
             }
 
-            // The address the mDNS record named, not loopback: on some releases
-            // adbd answers on the device's local-network address and a loopback
-            // connect fails.
-            AdbStarter.startAdb(applicationContext, endpoint.first, endpoint.second)
+            AdbStarter.startAdb(applicationContext, port)
             try {
                 Starter.waitForBinder()
-            } catch (e: StarterBinderTimeoutException) {
+            } catch (e: TimeoutException) {
                 // The binder can arrive right after the wait timed out, so
                 // re-ping once before treating this as a failure.
                 if (!Shizuku.pingBinder()) throw e
@@ -238,16 +233,6 @@ class AdbStartWorker(context: Context, params: WorkerParameters) : CoroutineWork
             updateNotification(applicationContext, state)
 
             throw e
-        } catch (e: StarterBinderTimeoutException) {
-            // The command ran and nothing followed, which no retry changes on
-            // its own and no other failure looks like. Said plainly instead of
-            // being folded into the retry notification, where it would read as
-            // "still trying".
-            ShizukuStateMachine.update()
-            val nm = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            nm.cancel(ShizukuReceiverStarter.NOTIFICATION_ID)
-            showStartFailedNotification(applicationContext)
-            return Result.retry()
         } catch (e: Exception) {
             val ignored = listOf(
                 EOFException::class,
@@ -315,9 +300,9 @@ class AdbStartWorker(context: Context, params: WorkerParameters) : CoroutineWork
      * re-arms the flag. All waits are bounded so a flapping flag cannot wedge
      * the worker.
      */
-    private suspend fun discoverEndpointViaMdns(cr: android.content.ContentResolver): Pair<String, Int> = callbackFlow {
+    private suspend fun discoverPortViaMdns(cr: android.content.ContentResolver): Int = callbackFlow {
         val adbMdns = AdbMdns(applicationContext, AdbMdns.TLS_CONNECT) { p ->
-            if (p.second > 0) trySend(p)
+            if (p.second > 0) trySend(p.second)
         }
 
         var awaitingAuth = false
@@ -411,32 +396,6 @@ class AdbStartWorker(context: Context, params: WorkerParameters) : CoroutineWork
             }
         }
     }.first()
-
-    private fun showStartFailedNotification(context: Context) {
-        ShizukuReceiverStarter.ensureChannel(context)
-
-        val msg = context.getString(R.string.porter_start_no_binder)
-        val intent = Intent(context, BugReportDialogActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-        }
-        val pendingIntent = PendingIntent.getActivity(
-            context, NOTIFICATION_ID, intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val notification = NotificationCompat.Builder(context, ShizukuReceiverStarter.CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_system_icon)
-            .setContentTitle(context.getString(R.string.wadb_error_title))
-            .setContentText(msg)
-            .setContentIntent(pendingIntent)
-            .setAutoCancel(true)
-            .setSilent(true)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(msg))
-            .build()
-
-        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        nm.notify(NOTIFICATION_ID, notification)
-    }
 
     private fun showErrorNotification(context: Context, e: Exception) {
         ShizukuReceiverStarter.ensureChannel(context)

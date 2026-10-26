@@ -9,18 +9,12 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import android.util.Log
-import android.view.View
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.lifecycleScope
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import moe.shizuku.manager.R
 import moe.shizuku.manager.adb.AdbMdns
 import moe.shizuku.manager.databinding.AdbDialogBinding
@@ -33,15 +27,13 @@ class AdbDialogFragment : DialogFragment() {
 
     private lateinit var binding: AdbDialogBinding
     private lateinit var adbMdns: AdbMdns
-    private var giveUpJob: Job? = null
-    /** The discovered address and port together; the address is what the connection must use. */
-    private val endpoint = MutableLiveData<Pair<String, Int>>()
+    private val port = MutableLiveData<Int>()
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         val context = requireContext()
         binding = AdbDialogBinding.inflate(layoutInflater)
         adbMdns = AdbMdns(context, AdbMdns.TLS_CONNECT) {
-            endpoint.postValue(it)
+            port.postValue(it.second)
         }
 
         val builder = MaterialAlertDialogBuilder(context).apply {
@@ -58,7 +50,6 @@ class AdbDialogFragment : DialogFragment() {
 
     override fun onDismiss(dialog: DialogInterface) {
         super.onDismiss(dialog)
-        giveUpJob?.cancel()
         adbMdns.stop()
     }
 
@@ -72,28 +63,15 @@ class AdbDialogFragment : DialogFragment() {
             SettingsPage.Developer.HighlightWirelessDebugging.launch(context)
         }
 
-        // A search that finds nothing must stop looking like one that is still running.
-        giveUpJob = viewLifecycleOwner.lifecycleScope.launch {
-            delay(DISCOVERY_GIVE_UP_MS)
-            if (isAdded) {
-                Log.i(TAG, "Wireless discovery: nothing advertised after ${DISCOVERY_GIVE_UP_MS}ms")
-                binding.notFound.visibility = View.VISIBLE
-            }
-        }
-
-        endpoint.observe(this) { (host, port) ->
-            if (port > 65535 || port < 1) return@observe
-            endpoint.removeObservers(this)
-            giveUpJob?.cancel()
-            startAndDismiss(host, port)
+        port.observe(this) {
+            if (it > 65535 || it < 1) return@observe
+            port.removeObservers(this)
+            startAndDismiss(it)
         }
     }
 
-    private fun startAndDismiss(host: String, port: Int) {
+    private fun startAndDismiss(port: Int) {
         val intent = Intent(context, StarterActivity::class.java).apply {
-            // The address the mDNS record named, not loopback: on some releases adbd answers on
-            // the device's local-network address and a loopback connect fails.
-            putExtra(StarterActivity.EXTRA_HOST, host)
             putExtra(StarterActivity.EXTRA_PORT, port)
         }
         requireContext().startActivity(intent)
@@ -104,16 +82,5 @@ class AdbDialogFragment : DialogFragment() {
     fun show(fragmentManager: FragmentManager) {
         if (fragmentManager.isStateSaved) return
         show(fragmentManager, javaClass.simpleName)
-    }
-
-    companion object {
-        private const val TAG = "AdbDialogFragment"
-
-        /**
-         * How long the search may stay quiet before the dialog says nothing was found. Wireless
-         * debugging advertises within seconds of being enabled, so this is long past it, and short
-         * enough that a user is not left staring at a spinner. Not a measured figure.
-         */
-        internal const val DISCOVERY_GIVE_UP_MS = 30_000L
     }
 }

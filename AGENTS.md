@@ -80,10 +80,3 @@ covered by a unit test, add a scenario there instead of asserting it was tested.
 - `manager/src/main/java/moe/shizuku/manager/adb/AdbStarter.kt` has two entry
   points, `startAdb` and `start`. A host or parameter change must reach both, and
   `AdbStartWorker` and `StarterActivity` are its only callers.
-- The wireless start path spans `AdbMdns` → `AdbDialogFragment` →
-  `StarterActivity` → `AdbStarter`. Dropping a value in the middle of it is the
-  bug class that `fix(wireless-discovery-host)` exists to fix; see
-  `TESTING.md` scenarios 13–15.
-- `Starter.waitForBinder` deliberately throws `StarterBinderTimeoutException`,
-  not `java.util.concurrent.TimeoutException`, because the worker treats the
-  latter as a retryable connection failure.
