@@ -95,7 +95,6 @@ class AdbDialogFragment : DialogFragment() {
             // the device's local-network address and a loopback connect fails.
             putExtra(StarterActivity.EXTRA_HOST, host)
             putExtra(StarterActivity.EXTRA_PORT, port)
-            putExtra(StarterActivity.EXTRA_REQUIRE_TLS, true)
         }
         requireContext().startActivity(intent)
 

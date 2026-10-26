@@ -112,9 +112,6 @@ class StarterActivity : AppBarActivity() {
         const val EXTRA_IS_ROOT = "$EXTRA.IS_ROOT"
         const val EXTRA_PORT = "$EXTRA.PORT"
 
-        /** Set with an [EXTRA_PORT] that wireless debugging's TLS service announced. */
-        const val EXTRA_REQUIRE_TLS = "$EXTRA.REQUIRE_TLS"
-
         /** Set with an [EXTRA_PORT] found through mDNS, whose record names the address to use. */
         const val EXTRA_HOST = "$EXTRA.HOST"
     }
