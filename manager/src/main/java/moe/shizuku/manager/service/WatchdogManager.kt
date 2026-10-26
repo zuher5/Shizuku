@@ -217,7 +217,7 @@ object WatchdogManager {
             return
         }
 
-        logi("Watchdog: %s, re-checking the server (attempts=%d)", reason, recoveryAttempts.get())
+        logi("Watchdog: $reason, re-checking the server (attempts=${recoveryAttempts.get()})")
         // A wake is a better moment than the exhausted one that preceded it, so
         // the ladder starts over rather than resuming where it stopped.
         recoveryAttempts.set(0)
