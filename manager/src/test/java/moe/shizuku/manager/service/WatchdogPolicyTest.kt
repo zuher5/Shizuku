@@ -70,7 +70,8 @@ class WatchdogPolicyTest {
 
     @Test
     fun maximumAttemptsExhaustsRecovery() {
-        val result = evaluate(attempts = WatchdogPolicy.MAX_RECOVERY_ATTEMPTS, lastRestartAttemptMs = 1L)
+        // Recent enough that the cap has not aged out yet.
+        val result = evaluate(attempts = WatchdogPolicy.MAX_RECOVERY_ATTEMPTS, now = 100_000L, lastRestartAttemptMs = 99_000L)
         assertTrue(result is WatchdogPolicy.AdmissionResult.Exhausted)
     }
 
@@ -116,6 +117,47 @@ class WatchdogPolicyTest {
         assertEquals(60_000L, WatchdogPolicy.getRequiredCooldown(3))
         assertEquals(120_000L, WatchdogPolicy.getRequiredCooldown(4))
         assertEquals(120_000L, WatchdogPolicy.getRequiredCooldown(9))
+    }
+
+    @Test
+    fun anExhaustedLadderIsSkippedUntilItsCapAgesOut() {
+        val justNow = evaluate(attempts = WatchdogPolicy.MAX_RECOVERY_ATTEMPTS, now = 10_000L, lastRestartAttemptMs = 9_000L)
+        assertTrue(justNow is WatchdogPolicy.AdmissionResult.Exhausted)
+
+        val agedOut = evaluate(
+            attempts = WatchdogPolicy.MAX_RECOVERY_ATTEMPTS,
+            now = WatchdogPolicy.EXHAUSTED_RESET_INTERVAL_MS + 10_000L,
+            lastRestartAttemptMs = 10_000L
+        )
+        // Reported rather than admitted directly, so the caller resets its own
+        // counter before the ladder starts again.
+        assertTrue(agedOut is WatchdogPolicy.AdmissionResult.Stale)
+    }
+
+    @Test
+    fun aLadderThatNeverReachedTheCapIsNeverStale() {
+        assertFalse(
+            WatchdogPolicy.isExhaustionStale(
+                attempts = WatchdogPolicy.MAX_RECOVERY_ATTEMPTS - 1,
+                now = Long.MAX_VALUE / 2,
+                lastRestartAttemptMs = 1L
+            )
+        )
+    }
+
+    @Test
+    fun theExhaustedCapAgesOutAfterTheResetInterval() {
+        val interval = WatchdogPolicy.EXHAUSTED_RESET_INTERVAL_MS
+        assertEquals(15 * 60_000L, interval)
+        assertFalse(WatchdogPolicy.isExhaustionStale(5, now = 1_000L + interval - 1, lastRestartAttemptMs = 1_000L))
+        assertTrue(WatchdogPolicy.isExhaustionStale(5, now = 1_000L + interval, lastRestartAttemptMs = 1_000L))
+    }
+
+    @Test
+    fun anExhaustedCountWithNoRecordedAttemptCountsAsStale() {
+        // A process that restarted has no in-memory timestamp to compare with;
+        // refusing to try would strand it for good.
+        assertTrue(WatchdogPolicy.isExhaustionStale(5, now = 1L, lastRestartAttemptMs = 0L))
     }
 
     @Test

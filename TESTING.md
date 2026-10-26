@@ -6,7 +6,7 @@ verified on a build server. These scenarios must be run on a real device.
 ## Prerequisites
 - Android 11+ (API 30+) for wireless debugging, or a rooted device.
 - Developer options enabled, wireless debugging paired (for the ADB path).
-- The debug build installed (for example, `shizuku-v13.7.4-Zuher5-debug.apk`).
+- The debug build installed (for example, `shizuku-v13.7.5-Zuher5-debug.apk`).
 
 Logcat filter:
 ```sh
@@ -88,3 +88,25 @@ adb logcat -s WatchdogManager WatchdogService ShizukuStateMachine AdbStartWorker
 - Send the authenticated `${applicationId}.START` broadcast or tap "attempt now" on the existing start notification.
 - **Expected:** the persisted user-stop flag is cleared and normal ADB startup proceeds.
 - Repeat stop with the server already stopped; **expected:** it remains stopped and no queued worker restarts it.
+
+## 13. Left alone for hours (the "it stopped on its own" case)
+**Goal:** a device that dozes long enough to exhaust the recovery ladder comes back without the user starting Shizuku by hand.
+- Enable watchdog and start on boot, start Shizuku over ADB, then leave the phone untouched and locked for 6+ hours.
+- **Expected:** the watchdog may log up to five failed attempts while the device is asleep. That is correct - wireless debugging is off in doze.
+- **Expected:** the moment the device is unlocked, logcat shows `Watchdog: device unlocked, re-checking the server` followed by `recovery started`.
+- **Expected:** the server is running again without opening the app.
+
+Logcat filter:
+```sh
+adb logcat -s WatchdogManager DeviceAwakeReceiver AdbNetworkObserver AdbStartWorker
+```
+
+## 14. Watchdog service brought back after doze
+**Goal:** the foreground service itself does not stay dead after the platform killed it.
+- Confirm the watchdog is on, then let the device doze or force-stop the manager.
+- **Expected:** on unlock, `DeviceAwakeReceiver: device unlocked, restarting the watchdog service`, and the watchdog notification returns.
+
+## 15. Wi-Fi returning re-arms recovery
+**Goal:** the exhausted ladder is reset when the network that the start needed comes back.
+- Exhaust the recovery attempts with Wi-Fi off, then turn Wi-Fi back on without touching the phone.
+- **Expected:** `Watchdog: unmetered network available, re-checking the server` and a fresh recovery attempt.

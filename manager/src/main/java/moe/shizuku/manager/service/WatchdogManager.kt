@@ -184,6 +184,47 @@ object WatchdogManager {
         }
     }
 
+    /**
+     * The conditions recovery depends on have changed: the device was unlocked,
+     * Wi-Fi came back, or the app was reopened.
+     *
+     * This exists because five failed attempts describe a moment, not an
+     * install. A phone left in a drawer over a long doze comes back with its
+     * wireless debugging off and its Wi-Fi dropped, and once the cap is hit the
+     * watchdog says nothing more - so the service stays down until the user
+     * starts it by hand, which is the one thing it must never need. Re-checking
+     * here means the next honest chance is taken instead of missed.
+     *
+     * Cheap and safe to call from any receiver: it does nothing unless the
+     * watchdog is enabled, no server is running, and no restart is already in
+     * flight.
+     */
+    fun onDeviceAwake(context: Context, reason: String) {
+        val app = context.applicationContext
+        synchronized(admissionLock) {
+            if (appContext == null) {
+                appContext = app
+            }
+        }
+        if (!isEnabled()) return
+        if (isUserStopRequested()) {
+            logd("Watchdog: %s, but the user stopped the server", reason)
+            return
+        }
+        if (isRestartInProgress()) return
+        if (Shizuku.pingBinder()) {
+            // Nothing to recover; the binder arriving has already reset the cap.
+            return
+        }
+
+        logi("Watchdog: %s, re-checking the server (attempts=%d)", reason, recoveryAttempts.get())
+        // A wake is a better moment than the exhausted one that preceded it, so
+        // the ladder starts over rather than resuming where it stopped.
+        recoveryAttempts.set(0)
+        lastRestartAttemptMs.set(0L)
+        attemptRestart(app)
+    }
+
     fun isRestartInProgress(): Boolean = restartInProgress.get()
 
     fun getRecoveryAttempts(): Int = recoveryAttempts.get()
@@ -288,6 +329,15 @@ object WatchdogManager {
         when (val admission = tryAdmitRestart()) {
             is WatchdogPolicy.AdmissionResult.Skipped -> {
                 logd("Watchdog: recovery skipped (${admission.reason})")
+                return
+            }
+            is WatchdogPolicy.AdmissionResult.Stale -> {
+                // Worn out by a long doze rather than by a broken install: start
+                // the ladder again instead of staying silent for good.
+                logi("Watchdog: attempt cap aged out (${admission.attempts} attempts), resetting")
+                recoveryAttempts.set(0)
+                lastRestartAttemptMs.set(0L)
+                attemptRestart(app)
                 return
             }
             is WatchdogPolicy.AdmissionResult.Exhausted -> {

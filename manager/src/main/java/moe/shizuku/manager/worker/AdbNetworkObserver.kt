@@ -17,6 +17,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import moe.shizuku.manager.ShizukuSettings
 import moe.shizuku.manager.receiver.ShizukuReceiverStarter
+import moe.shizuku.manager.service.WatchdogManager
 import rikka.shizuku.Shizuku
 
 /**
@@ -86,6 +87,11 @@ object AdbNetworkObserver {
     }
 
     private fun onUnmeteredAvailable(app: Application) {
+        // Wi-Fi returning is the other half of the long-doze case: the start
+        // worker was waiting for a network that had gone away, and recovery may
+        // have used up its attempts meanwhile.
+        WatchdogManager.onDeviceAwake(app.applicationContext, "unmetered network available")
+
         if (Shizuku.pingBinder()) {
             // The "awaiting Wi-Fi" banner is definitively stale, so clear it.
             // This runs before the debounce so a no-op binder-up flap does not
