@@ -91,8 +91,11 @@ class StarterActivity : AppBarActivity() {
         if (hasFocus && !hasStarted) {
             hasStarted = true
             viewModel.start(
-                intent.getBooleanExtra(EXTRA_IS_ROOT, false),
-                intent.getIntExtra(EXTRA_PORT, 0)
+                root = intent.getBooleanExtra(EXTRA_IS_ROOT, false),
+                // Loopback unless the caller names the address wireless debugging advertised: on
+                // some releases adbd answers on the device's local-network address.
+                host = intent.getStringExtra(EXTRA_HOST) ?: AdbStarter.LOOPBACK_HOST,
+                port = intent.getIntExtra(EXTRA_PORT, 0)
             )
         }
     }
@@ -101,6 +104,12 @@ class StarterActivity : AppBarActivity() {
 
         const val EXTRA_IS_ROOT = "$EXTRA.IS_ROOT"
         const val EXTRA_PORT = "$EXTRA.PORT"
+
+        /** Set with an [EXTRA_PORT] that wireless debugging's TLS service announced. */
+        const val EXTRA_REQUIRE_TLS = "$EXTRA.REQUIRE_TLS"
+
+        /** Set with an [EXTRA_PORT] found through mDNS, whose record names the address to use. */
+        const val EXTRA_HOST = "$EXTRA.HOST"
     }
 }
 
@@ -120,7 +129,7 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
 
     private var started = false
 
-    fun start(root: Boolean, port: Int) {
+    fun start(root: Boolean, host: String, port: Int) {
         if (started) return
         started = true
 
@@ -129,7 +138,7 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch(handler) {
             if (root) startRoot()
-            else AdbStarter.startAdb(appContext, port, { log(it) })
+            else AdbStarter.startAdb(appContext, host, port, { log(it) })
             Starter.waitForBinder({ log(it) })
         }
     }

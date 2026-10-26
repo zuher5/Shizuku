@@ -22,13 +22,18 @@ object AdbStarter {
 
     private const val CONNECT_RETRIES = 8
 
+    /** Where a plain `adb tcpip` port is reachable; TLS wireless debugging may advertise something else. */
+    internal const val LOOPBACK_HOST = "127.0.0.1"
+
     /**
      * Starts the Shizuku server through ADB.
      *
+     * @param host the address adbd answers on: the mDNS record names it, and on some releases it is
+     *   not loopback.
      * @param port the port adbd is reachable at.
      */
-    suspend fun startAdb(context: Context, port: Int, log: ((String) -> Unit)? = null) {
-        start(port = port, context = context, log = log)
+    suspend fun startAdb(context: Context, host: String = LOOPBACK_HOST, port: Int, log: ((String) -> Unit)? = null) {
+        start(host = host, port = port, context = context, log = log)
     }
 
     /**
@@ -39,7 +44,7 @@ object AdbStarter {
      * command is expected and ignored.
      */
     suspend fun start(
-        host: String = "127.0.0.1",
+        host: String = LOOPBACK_HOST,
         port: Int,
         context: Context? = null,
         listener: ((ByteArray) -> Unit)? = null,
@@ -155,7 +160,9 @@ object AdbStarter {
             ShizukuStateMachine.onStopRequested()
             val key = AdbKey(PreferenceAdbKeyStore(ShizukuSettings.getPreferences()), "shizuku")
             withContext(Dispatchers.IO) {
-                AdbClient("127.0.0.1", port, key).use { client ->
+                // A port in TCP mode is the one `adb tcpip` opened on loopback; a stop is never the
+                // TLS wireless-debugging port, so there is no advertised host to honour here.
+                AdbClient(LOOPBACK_HOST, port, key).use { client ->
                     client.connect()
                     client.command("usb:")
                 }

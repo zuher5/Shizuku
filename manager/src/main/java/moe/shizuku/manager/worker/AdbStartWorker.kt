@@ -181,19 +181,20 @@ class AdbStartWorker(context: Context, params: WorkerParameters) : CoroutineWork
 
             val liveTcpPort = EnvironmentUtils.getLiveAdbTcpPort()
 
-            val port = if (EnvironmentUtils.isTelevision()) {
+            val endpoint: Pair<String, Int> = if (EnvironmentUtils.isTelevision()) {
                 // TV devices with a configured TCP port use TCP directly;
                 // mDNS discovery is unreliable on LEANBACK.
-                if (tcpPort > 0) tcpPort else throw SecurityException("TV device requires TCP ADB port to be configured")
+                if (tcpPort > 0) AdbStarter.LOOPBACK_HOST to tcpPort
+                else throw SecurityException("TV device requires TCP ADB port to be configured")
             } else if (!EnvironmentUtils.isWifiRequired() && liveTcpPort > 0) {
                 // A configured port that is actually live can be used directly.
-                liveTcpPort
+                AdbStarter.LOOPBACK_HOST to liveTcpPort
             } else {
                 // The mDNS advert can go stale when Wi-Fi drops and reconnects
                 // (the framework never re-publishes _adb-tls-connect_). A live
                 // port is used directly, otherwise discovery runs; a wrong
                 // service connect dies fast, so the fallback is safe.
-                if (liveTcpPort > 0) liveTcpPort else discoverPortViaMdns(cr)
+                if (liveTcpPort > 0) AdbStarter.LOOPBACK_HOST to liveTcpPort else discoverEndpointViaMdns(cr)
             }
 
             // A user may have stopped the server while discovery was in
@@ -203,7 +204,10 @@ class AdbStartWorker(context: Context, params: WorkerParameters) : CoroutineWork
                 return Result.success()
             }
 
-            AdbStarter.startAdb(applicationContext, port)
+            // The address the mDNS record named, not loopback: on some releases
+            // adbd answers on the device's local-network address and a loopback
+            // connect fails.
+            AdbStarter.startAdb(applicationContext, endpoint.first, endpoint.second)
             try {
                 Starter.waitForBinder()
             } catch (e: TimeoutException) {
@@ -300,9 +304,9 @@ class AdbStartWorker(context: Context, params: WorkerParameters) : CoroutineWork
      * re-arms the flag. All waits are bounded so a flapping flag cannot wedge
      * the worker.
      */
-    private suspend fun discoverPortViaMdns(cr: android.content.ContentResolver): Int = callbackFlow {
+    private suspend fun discoverEndpointViaMdns(cr: android.content.ContentResolver): Pair<String, Int> = callbackFlow {
         val adbMdns = AdbMdns(applicationContext, AdbMdns.TLS_CONNECT) { p ->
-            if (p.second > 0) trySend(p.second)
+            if (p.second > 0) trySend(p)
         }
 
         var awaitingAuth = false

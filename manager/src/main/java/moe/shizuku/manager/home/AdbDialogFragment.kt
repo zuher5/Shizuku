@@ -27,13 +27,14 @@ class AdbDialogFragment : DialogFragment() {
 
     private lateinit var binding: AdbDialogBinding
     private lateinit var adbMdns: AdbMdns
-    private val port = MutableLiveData<Int>()
+    /** The discovered address and port together; the address is what the connection must use. */
+    private val endpoint = MutableLiveData<Pair<String, Int>>()
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         val context = requireContext()
         binding = AdbDialogBinding.inflate(layoutInflater)
         adbMdns = AdbMdns(context, AdbMdns.TLS_CONNECT) {
-            port.postValue(it.second)
+            endpoint.postValue(it)
         }
 
         val builder = MaterialAlertDialogBuilder(context).apply {
@@ -63,16 +64,20 @@ class AdbDialogFragment : DialogFragment() {
             SettingsPage.Developer.HighlightWirelessDebugging.launch(context)
         }
 
-        port.observe(this) {
-            if (it > 65535 || it < 1) return@observe
-            port.removeObservers(this)
-            startAndDismiss(it)
+        endpoint.observe(this) { (host, port) ->
+            if (port > 65535 || port < 1) return@observe
+            endpoint.removeObservers(this)
+            startAndDismiss(host, port)
         }
     }
 
-    private fun startAndDismiss(port: Int) {
+    private fun startAndDismiss(host: String, port: Int) {
         val intent = Intent(context, StarterActivity::class.java).apply {
+            // The address the mDNS record named, not loopback: on some releases adbd answers on
+            // the device's local-network address and a loopback connect fails.
+            putExtra(StarterActivity.EXTRA_HOST, host)
             putExtra(StarterActivity.EXTRA_PORT, port)
+            putExtra(StarterActivity.EXTRA_REQUIRE_TLS, true)
         }
         requireContext().startActivity(intent)
 
