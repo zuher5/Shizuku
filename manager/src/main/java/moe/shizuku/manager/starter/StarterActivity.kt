@@ -75,6 +75,9 @@ class StarterActivity : AppBarActivity() {
                     is LocalNetworkDeniedException -> {
                         message = R.string.porter_local_network_permission
                     }
+                    is StarterBinderTimeoutException -> {
+                        message = R.string.porter_start_no_binder
+                    }
                 }
 
                 if (message != 0) {
