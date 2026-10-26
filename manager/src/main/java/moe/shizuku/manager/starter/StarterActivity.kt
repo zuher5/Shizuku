@@ -26,6 +26,7 @@ import moe.shizuku.manager.AppConstants.EXTRA
 import moe.shizuku.manager.R
 import moe.shizuku.manager.adb.AdbKeyException
 import moe.shizuku.manager.adb.AdbStarter
+import moe.shizuku.manager.adb.LocalNetworkDeniedException
 import moe.shizuku.manager.app.AppBarActivity
 import moe.shizuku.manager.service.WatchdogManager
 import moe.shizuku.manager.utils.ShizukuStateMachine
@@ -70,6 +71,9 @@ class StarterActivity : AppBarActivity() {
                     }
                     is SSLProtocolException -> {
                         message = R.string.adb_pair_required
+                    }
+                    is LocalNetworkDeniedException -> {
+                        message = R.string.porter_local_network_permission
                     }
                 }
 

@@ -15,6 +15,7 @@ import moe.shizuku.manager.ShizukuSettings
 import moe.shizuku.manager.starter.Starter
 import moe.shizuku.manager.utils.EnvironmentUtils
 import moe.shizuku.manager.utils.ShizukuStateMachine
+import moe.shizuku.manager.utils.hasLocalNetworkPermission
 
 object AdbStarter {
 
@@ -52,6 +53,13 @@ object AdbStarter {
     ) {
         ShizukuStateMachine.onStartRequested()
         log?.invoke("Starting with wireless adb...\n")
+
+        // A refused connection without the grant does not say why; naming it turns the generic
+        // "cannot connect" into the one action that fixes it.
+        context?.takeIf { !it.hasLocalNetworkPermission() }?.let {
+            log?.invoke("Missing local network permission.\n")
+            throw LocalNetworkDeniedException()
+        }
 
         val key = withContext(Dispatchers.IO) {
             runCatching { AdbKey(PreferenceAdbKeyStore(ShizukuSettings.getPreferences()), "shizuku") }

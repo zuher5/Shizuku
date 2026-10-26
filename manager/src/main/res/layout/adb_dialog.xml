@@ -27,6 +27,17 @@
             android:textStyle="bold"
             android:text="@string/dialog_adb_discovery_message_toggle_wireless_debugging" />
 
+        <!-- Shown only after the search has run for its deadline without a service, so a search
+             that can never succeed stops looking like one that is still in progress. -->
+        <TextView
+            android:id="@+id/not_found"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textAppearance="?textAppearanceBodyMedium"
+            android:textColor="?attr/colorError"
+            android:text="@string/dialog_adb_discovery_not_found"
+            android:visibility="gone" />
+
     </LinearLayout>
 
 </androidx.core.widget.NestedScrollView>

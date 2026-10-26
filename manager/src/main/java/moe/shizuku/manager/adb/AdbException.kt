@@ -14,3 +14,10 @@ open class AdbException : Exception {
 class AdbInvalidPairingCodeException : AdbException()
 
 class AdbKeyException(cause: Throwable) : AdbException(cause)
+
+/**
+ * The local-network grant wireless debugging needs is missing, so discovery and the connection
+ * could not reach anything. Kept apart from a plain connection failure so the user is told to
+ * grant access instead of being sent to look at wireless debugging settings.
+ */
+class LocalNetworkDeniedException : AdbException()

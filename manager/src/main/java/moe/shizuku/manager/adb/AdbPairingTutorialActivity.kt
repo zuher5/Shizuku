@@ -1,6 +1,5 @@
 package moe.shizuku.manager.adb
 
-import android.Manifest
 import android.app.AppOpsManager
 import android.app.ForegroundServiceStartNotAllowedException
 import android.app.NotificationManager
@@ -20,6 +19,7 @@ import moe.shizuku.manager.AppConstants
 import moe.shizuku.manager.app.AppBarActivity
 import moe.shizuku.manager.databinding.AdbPairingTutorialActivityBinding
 import moe.shizuku.manager.utils.SettingsHelper
+import moe.shizuku.manager.utils.localNetworkPermission
 import moe.shizuku.manager.utils.SettingsPage
 import rikka.compatibility.DeviceCompatibility
 
@@ -98,11 +98,7 @@ class AdbPairingTutorialActivity : AppBarActivity() {
     // Android 17 (SDK 37) gates local-network access behind ACCESS_LOCAL_NETWORK;
     // Android 16 (SDK 36) uses NEARBY_WIFI_DEVICES. Without a runtime grant the OS
     // intercepts the pairing connection with an endless "choose a device" picker.
-    private fun localNetworkPermission(): String? = when {
-        Build.VERSION.SDK_INT >= 37 -> "android.permission.ACCESS_LOCAL_NETWORK"
-        Build.VERSION.SDK_INT >= 36 -> Manifest.permission.NEARBY_WIFI_DEVICES
-        else -> null
-    }
+    // The rule itself lives in utils/LocalNetwork.kt, where the start path reads it too.
 
     private val localNetworkPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) {
