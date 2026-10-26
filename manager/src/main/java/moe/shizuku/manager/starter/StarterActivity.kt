@@ -26,6 +26,7 @@ import moe.shizuku.manager.AppConstants.EXTRA
 import moe.shizuku.manager.R
 import moe.shizuku.manager.adb.AdbKeyException
 import moe.shizuku.manager.adb.AdbStarter
+import moe.shizuku.manager.adb.LocalNetworkDeniedException
 import moe.shizuku.manager.app.AppBarActivity
 import moe.shizuku.manager.service.WatchdogManager
 import moe.shizuku.manager.utils.ShizukuStateMachine
@@ -71,6 +72,12 @@ class StarterActivity : AppBarActivity() {
                     is SSLProtocolException -> {
                         message = R.string.adb_pair_required
                     }
+                    is LocalNetworkDeniedException -> {
+                        message = R.string.porter_local_network_permission
+                    }
+                    is StarterBinderTimeoutException -> {
+                        message = R.string.porter_start_no_binder
+                    }
                 }
 
                 if (message != 0) {
@@ -91,8 +98,11 @@ class StarterActivity : AppBarActivity() {
         if (hasFocus && !hasStarted) {
             hasStarted = true
             viewModel.start(
-                intent.getBooleanExtra(EXTRA_IS_ROOT, false),
-                intent.getIntExtra(EXTRA_PORT, 0)
+                root = intent.getBooleanExtra(EXTRA_IS_ROOT, false),
+                // Loopback unless the caller names the address wireless debugging advertised: on
+                // some releases adbd answers on the device's local-network address.
+                host = intent.getStringExtra(EXTRA_HOST) ?: AdbStarter.LOOPBACK_HOST,
+                port = intent.getIntExtra(EXTRA_PORT, 0)
             )
         }
     }
@@ -101,6 +111,9 @@ class StarterActivity : AppBarActivity() {
 
         const val EXTRA_IS_ROOT = "$EXTRA.IS_ROOT"
         const val EXTRA_PORT = "$EXTRA.PORT"
+
+        /** Set with an [EXTRA_PORT] found through mDNS, whose record names the address to use. */
+        const val EXTRA_HOST = "$EXTRA.HOST"
     }
 }
 
@@ -120,7 +133,7 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
 
     private var started = false
 
-    fun start(root: Boolean, port: Int) {
+    fun start(root: Boolean, host: String, port: Int) {
         if (started) return
         started = true
 
@@ -129,7 +142,7 @@ class ViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch(handler) {
             if (root) startRoot()
-            else AdbStarter.startAdb(appContext, port, { log(it) })
+            else AdbStarter.startAdb(appContext, host, port, { log(it) })
             Starter.waitForBinder({ log(it) })
         }
     }
