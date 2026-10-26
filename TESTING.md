@@ -6,7 +6,7 @@ verified on a build server. These scenarios must be run on a real device.
 ## Prerequisites
 - Android 11+ (API 30+) for wireless debugging, or a rooted device.
 - Developer options enabled, wireless debugging paired (for the ADB path).
-- The debug build installed (for example, `shizuku-v13.7.4-Zuher5-debug.apk`).
+- The debug build installed (for example, `shizuku-v13.7.5-Zuher5-debug.apk`).
 
 Logcat filter:
 ```sh
@@ -88,3 +88,26 @@ adb logcat -s WatchdogManager WatchdogService ShizukuStateMachine AdbStartWorker
 - Send the authenticated `${applicationId}.START` broadcast or tap "attempt now" on the existing start notification.
 - **Expected:** the persisted user-stop flag is cleared and normal ADB startup proceeds.
 - Repeat stop with the server already stopped; **expected:** it remains stopped and no queued worker restarts it.
+
+## 13. The advertised address is the one used
+**Goal:** a start over wireless debugging connects to the address mDNS advertised, not to loopback.
+- Enable wireless debugging and disconnect USB debugging, so the only way in is the TLS service.
+- Start Shizuku and watch the log:
+  ```sh
+  adb logcat -s AdbStarter AdbStartWorker AdbMdns
+  ```
+- **Expected:** `AdbMdns` accepts a service on the device's own address, and the connection that follows succeeds on that port. A device whose adbd answers only on loopback still works, because the port is what the socket is opened on.
+- **On a device where a loopback connect was refused before:** the start now succeeds. If it still fails, the log line names the port that was tried, which is what a report needs.
+
+## 14. Discovery that finds nothing says so
+**Goal:** a search that cannot succeed stops looking like one that is still running.
+- Turn wireless debugging **off**, then start Shizuku from the wireless card.
+- **Expected:** after 30 seconds the discovery dialog adds "No wireless debugging service was found…" while the spinner keeps turning, so the state is readable instead of ambiguous.
+- Turn wireless debugging back on; **expected:** the dialog hands off as soon as the service is advertised and the message is not shown.
+
+## 15. A server that never reports back
+**Goal:** a start whose shell command ran but whose binder never arrived is reported as such, not as a slow start or a connection failure.
+- Make the server fail after it is launched, for example by revoking a permission it needs while the start runs, or by blocking the app's background execution on a vendor ROM.
+- Start Shizuku over ADB and wait out the minute.
+- **Expected:** logcat shows `Starter: no binder within 60000ms (state=STARTING)`, the start screen shows "Shizuku was started but never reported back…", and the notification says the same instead of continuing to show a retry.
+- **Expected:** the message is *not* the generic "Can't connect to wireless debugging service", which is what this used to look like.
